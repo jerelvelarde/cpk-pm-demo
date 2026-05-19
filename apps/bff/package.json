@@ -9,6 +9,7 @@
     "start": "node dist/server.js"
   },
   "dependencies": {
+    "@ag-ui/client": "^0.0.52",
     "@copilotkit/runtime": "1.57.0",
     "@hono/node-server": "^1.13.6",
     "express": "5.2.1",

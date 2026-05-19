@@ -7,9 +7,14 @@ import { useFrontendTool } from "@copilotkit/react-core";
 interface ExampleLayoutProps {
   chatContent: ReactNode;
   appContent: ReactNode;
+  chatHeader?: ReactNode;
 }
 
-export function ExampleLayout({ chatContent, appContent }: ExampleLayoutProps) {
+export function ExampleLayout({
+  chatContent,
+  appContent,
+  chatHeader,
+}: ExampleLayoutProps) {
   const [mode, setMode] = useState<"chat" | "app">("app");
 
   useFrontendTool({
@@ -51,22 +56,25 @@ export function ExampleLayout({ chatContent, appContent }: ExampleLayoutProps) {
           WebkitBackdropFilter: "blur(8px)",
         }}
       >
-        <div className="shrink-0 pt-5 pl-5 pb-2 max-lg:pl-4 max-lg:pt-4 flex items-center gap-2">
-          <img
-            src="/copilotkit-logo.svg"
-            alt="CopilotKit"
-            className="h-6"
-          />
-          <span
-            style={{
-              fontSize: 18,
-              fontWeight: 300,
-              color: "var(--text-primary)",
-              marginLeft: 4,
-            }}
-          >
-            PM Copilot
-          </span>
+        <div className="shrink-0 pt-5 pl-5 pr-4 pb-2 max-lg:pl-4 max-lg:pt-4 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <img
+              src="/copilotkit-logo.svg"
+              alt="CopilotKit"
+              className="h-6"
+            />
+            <span
+              style={{
+                fontSize: 18,
+                fontWeight: 300,
+                color: "var(--text-primary)",
+                marginLeft: 4,
+              }}
+            >
+              PM Copilot
+            </span>
+          </div>
+          {chatHeader}
         </div>
         <div
           className={`flex-1 min-h-0 overflow-y-auto ${

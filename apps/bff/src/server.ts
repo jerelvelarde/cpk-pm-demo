@@ -1,4 +1,5 @@
 import { serve } from "@hono/node-server";
+import { HttpAgent } from "@ag-ui/client";
 import {
   CopilotRuntime,
   CopilotKitIntelligence,
@@ -9,9 +10,6 @@ import { WhisperTranscriptionService } from "./whisper-transcription.js";
 
 const useMock = process.env.USE_MOCK === "1";
 
-// In mock mode we point at the local aimock server instead of api.openai.com.
-// Both the Python agent and the BFF honor this env (see apps/agent/main.py
-// for the mirror). Defaults pulled from the aimock config in fixtures/.
 if (useMock) {
   process.env.OPENAI_BASE_URL =
     process.env.OPENAI_BASE_URL ?? "http://localhost:4010/v1";
@@ -26,11 +24,21 @@ const intelligence = new CopilotKitIntelligence({
   wsUrl: process.env.INTELLIGENCE_GATEWAY_WS_URL ?? "ws://localhost:4401",
 });
 
+// LangGraph agent — the original PM copilot. graphId is the langgraph.json
+// id from apps/agent.
 const langgraphAgent = new LangGraphAgent({
   deploymentUrl:
     process.env.LANGGRAPH_DEPLOYMENT_URL ?? "http://localhost:8123",
   graphId: "sample_agent",
   langsmithApiKey: process.env.LANGSMITH_API_KEY ?? "",
+});
+
+// Google ADK agent — same tool surface, exposed as a vanilla AG-UI HTTP
+// endpoint by ag-ui-adk's FastAPI plumbing. We point HttpAgent at it; the
+// frontend uses whichever agent the user picks from the agent selector.
+const adkAgent = new HttpAgent({
+  url:
+    process.env.ADK_AGENT_URL ?? "http://localhost:8124/",
 });
 
 const transcriptionService = new WhisperTranscriptionService({
@@ -44,7 +52,13 @@ const app = createCopilotHonoHandler({
     intelligence,
     identifyUser: () => ({ id: "jordan-beamson", name: "Jordan Beamson" }),
     licenseToken: process.env.COPILOTKIT_LICENSE_TOKEN,
-    agents: { default: langgraphAgent },
+    agents: {
+      // The frontend agent selector picks one of these by name. Both expose
+      // the same tools — manage_issues / propose_issue_change / etc.
+      default: langgraphAgent,
+      langgraph: langgraphAgent,
+      adk: adkAgent,
+    },
     openGenerativeUI: true,
     transcriptionService,
     a2ui: {
