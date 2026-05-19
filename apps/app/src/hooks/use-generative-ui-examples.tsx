@@ -29,6 +29,10 @@ import {
   IssueListProps,
 } from "@/components/generative-ui/issue-list";
 import {
+  IssueTable,
+  IssueTableProps,
+} from "@/components/generative-ui/issue-table";
+import {
   AgentProgress,
   AgentProgressProps,
 } from "@/components/generative-ui/agent-progress";
@@ -123,6 +127,14 @@ export const useGenerativeUIExamples = () => {
       "Call this to surface a list of issues inline in chat as glass cards. Use it whenever the user asks to 'show', 'list', or 'see' specific issues. Pass issueIds with the ids you want to surface (e.g. all urgent issues, all unassigned issues, the ones you just edited) — the frontend looks them up in agent state. Call get_issues first if you don't already have the ids.",
     parameters: IssueListProps,
     render: IssueList,
+  });
+
+  useComponent({
+    name: "issueTable",
+    description:
+      "Call this to surface a list of issues inline in chat as a compact table (ID / Title / Status / Priority / Assignee / Due). Prefer this over issueList when the user asks to 'list', 'tabulate', or see a quick at-a-glance view (e.g. 'show me all urgent issues'). Pass issueIds with the ids you want to surface — the frontend looks them up in agent state.",
+    parameters: IssueTableProps,
+    render: IssueTable,
   });
 
   // Sprint-planning progress narration. Each call renders a single animated
