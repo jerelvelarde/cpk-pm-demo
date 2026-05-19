@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   CopilotChat,
   CopilotChatConfigurationProvider,
+  CopilotChatInput,
+  type CopilotChatInputProps,
   CopilotKit,
   useAgent,
   useCopilotChatConfiguration,
@@ -22,6 +24,13 @@ import styles from "@/components/threads-drawer/threads-drawer.module.css";
 
 /** Title of the suggestion chip that should auto-attach the sprint notes. */
 const PLAN_SPRINT_SUGGESTION_TITLE = "Plan next sprint";
+
+// Demo override: the BFF has no /transcribe endpoint, so the default voice
+// pipeline throws. We still want the mic button to record and animate, then
+// drop a canned utterance into the input box (without sending) so the demo
+// flows like a real voice transcript.
+const MOCK_TRANSCRIPT =
+  "Plan the next sprint backlog using this meeting notes from our sprint planning.";
 
 const runtimeUrl = "/api/copilotkit";
 
@@ -84,9 +93,40 @@ function ChatWired() {
     [agent, copilotkit],
   );
 
+  // Function-component input slot. We need closure access to the bound
+  // `onChange` (the controlled-input setter CopilotChat passes through
+  // CopilotChatView) so the mocked transcript handler can drop text into the
+  // textarea without sending. A plain-object slot can override
+  // onFinishTranscribeWithAudio but can't read the bound onChange/value.
+  const InputSlot = useCallback(
+    (slotProps: CopilotChatInputProps) => {
+      const { value, onChange } = slotProps;
+      const handleFinishTranscribeWithAudio = async (_audioBlob: Blob) => {
+        const prev =
+          typeof value === "string" ? value.trim() : "";
+        const next = prev ? `${prev} ${MOCK_TRANSCRIPT}` : MOCK_TRANSCRIPT;
+        onChange?.(next);
+      };
+      return (
+        <CopilotChatInput
+          {...slotProps}
+          disclaimer={() => null}
+          className="pb-6"
+          toolsMenu={toolsMenu}
+          onFinishTranscribeWithAudio={handleFinishTranscribeWithAudio}
+        />
+      );
+    },
+    [toolsMenu],
+  );
+
   return (
     <CopilotChat
-      input={{ disclaimer: () => null, className: "pb-6", toolsMenu }}
+      // Cast: SlotValue<typeof CopilotChatInput> wants the compound component
+      // (static SendButton/TextArea/etc. attached). The slot runtime only
+      // needs `typeof slot === "function"` to treat it as a component, so a
+      // plain function component works in practice.
+      input={InputSlot as unknown as typeof CopilotChatInput}
       suggestionView={{ onSelectSuggestion: handleSelectSuggestion }}
       attachments={{
         enabled: true,
