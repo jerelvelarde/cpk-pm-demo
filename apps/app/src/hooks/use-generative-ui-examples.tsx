@@ -26,9 +26,9 @@ import {
   IssueListProps,
 } from "@/components/generative-ui/issue-list";
 import {
-  AttachMeetingNotes,
-  AttachMeetingNotesProps,
-} from "@/components/generative-ui/attach-meeting-notes";
+  AgentProgress,
+  AgentProgressProps,
+} from "@/components/generative-ui/agent-progress";
 import { ApprovalCard } from "@/components/generative-ui/approval-card";
 import { ToolReasoning } from "@/components/tool-rendering";
 
@@ -116,17 +116,17 @@ export const useGenerativeUIExamples = () => {
     render: IssueList,
   });
 
-  // Sprint-planning attachment animation. Used only for the "plan next sprint"
-  // demo: renders an animated "attaching -> attached" file card for a fake
-  // Sprint Cycle 52 Meeting Notes.txt and expands to reveal the body. The
-  // tool is purely visual; call it when the user has handed you planning
-  // notes you should "read" before proposing issues.
+  // Sprint-planning progress narration. Each call renders a single animated
+  // step card (spinner -> green check) so the chain reads as "reading image ->
+  // transcribing -> planning tickets -> writing tickets" before the actual
+  // manage_issues mutation lands. Purely visual; the agent (or fixture) emits
+  // one tool call per step.
   useComponent({
-    name: "attachMeetingNotes",
+    name: "agentProgress",
     description:
-      "Render an animated attached-file card for planning notes the user has shared (e.g. sprint planning notes). Use this immediately before proposing sprint issues so the user can see which document you are working from. Pass filename, size, and the full content as a string.",
-    parameters: AttachMeetingNotesProps,
-    render: AttachMeetingNotes,
+      "Narrate a single step of a longer agent workflow as an animated progress card. Call once per step in sequence. Used by the sprint-planning demo to show 'reading image', 'transcribing', 'planning tickets', 'writing tickets'.",
+    parameters: AgentProgressProps,
+    render: AgentProgress,
   });
 
   // Default Tool Rendering (backend tool UI)

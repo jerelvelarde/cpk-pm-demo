@@ -2,27 +2,29 @@
 
 import { useEffect, useState } from "react";
 import { z } from "zod";
-import { Check, FileText } from "lucide-react";
+import { Check } from "lucide-react";
 
 /**
- * Schema for the attachMeetingNotes frontend tool. The LLM passes the
- * filename + size + body; the component animates an "attaching… → attached"
- * card and reveals the body inline.
+ * Schema for the attachMeetingNotes frontend tool. The LLM (or fixture) passes
+ * a filename + size + imageUrl; the component animates an "attaching... ->
+ * attached" header strip and reveals the actual image inline.
  *
- * The animation is purely visual (not gated on streaming status) so the
- * mock-mode demo plays out consistently regardless of how fast the fixture
- * streams.
+ * This is a demo-only visual: in mock mode the fixture hardcodes the image
+ * path. The animation is purely time-based (not gated on streaming status) so
+ * it plays consistently regardless of how the fixture streams the args.
  */
 export const AttachMeetingNotesProps = z.object({
   filename: z
     .string()
-    .describe("Display filename, e.g. Sprint Cycle 52 Meeting Notes.txt"),
+    .describe("Display filename, e.g. Sprint 52 Planning Notes.png"),
   size: z
     .string()
-    .describe("Display size, e.g. 2.4 KB. Purely cosmetic."),
-  content: z
+    .describe("Display size, e.g. 2.3 MB. Purely cosmetic."),
+  imageUrl: z
     .string()
-    .describe("Body text of the document, rendered in the expandable panel."),
+    .describe(
+      "Public URL or absolute path to the image to display, e.g. /sprint-52.png",
+    ),
 });
 
 export type AttachMeetingNotesArgs = z.infer<typeof AttachMeetingNotesProps>;
@@ -32,10 +34,9 @@ const ATTACH_DURATION_MS = 1200;
 export function AttachMeetingNotes({
   filename,
   size,
-  content,
+  imageUrl,
 }: AttachMeetingNotesArgs) {
   const [phase, setPhase] = useState<"attaching" | "attached">("attaching");
-  const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
     const t = setTimeout(() => setPhase("attached"), ATTACH_DURATION_MS);
@@ -48,12 +49,13 @@ export function AttachMeetingNotes({
       style={{
         background: "rgba(255, 255, 255, 0.65)",
         border: "2px solid #ffffff",
-        borderRadius: 8,
-        padding: 12,
+        borderRadius: 10,
+        padding: 10,
         marginBottom: 8,
         backdropFilter: "blur(6px)",
         WebkitBackdropFilter: "blur(6px)",
         boxShadow: "0px 1px 3px 0px rgba(1, 5, 7, 0.08)",
+        overflow: "hidden",
       }}
     >
       <style>{`
@@ -61,41 +63,18 @@ export function AttachMeetingNotes({
           0% { transform: translateX(-100%); }
           100% { transform: translateX(220%); }
         }
-        @keyframes attachIconPulse {
-          0%, 100% { transform: scale(1); opacity: 1; }
-          50% { transform: scale(1.05); opacity: 0.85; }
-        }
         @keyframes attachCheckPop {
           0% { transform: scale(0); opacity: 0; }
           60% { transform: scale(1.15); opacity: 1; }
           100% { transform: scale(1); opacity: 1; }
         }
-        @keyframes attachContentSlide {
-          from { opacity: 0; transform: translateY(-4px); max-height: 0; }
-          to   { opacity: 1; transform: translateY(0);    max-height: 320px; }
+        @keyframes attachImageReveal {
+          from { opacity: 0; transform: translateY(-4px); }
+          to   { opacity: 1; transform: translateY(0); }
         }
       `}</style>
 
-      <div className="flex items-center gap-3">
-        <div
-          className="flex items-center justify-center flex-none rounded-md"
-          style={{
-            width: 36,
-            height: 36,
-            background: "#ffffff",
-            border: "1px solid #dbdbe5",
-            animation:
-              phase === "attaching"
-                ? "attachIconPulse 1.2s ease-in-out infinite"
-                : undefined,
-          }}
-        >
-          <FileText
-            className="h-4 w-4"
-            style={{ color: phase === "attached" ? "#189370" : "#57575b" }}
-          />
-        </div>
-
+      <div className="flex items-center gap-2" style={{ marginBottom: 8 }}>
         <div className="min-w-0 flex-1">
           <div
             style={{
@@ -129,7 +108,8 @@ export function AttachMeetingNotes({
                     width: 12,
                     height: 12,
                     background: "#189370",
-                    animation: "attachCheckPop 0.4s cubic-bezier(0.16, 1, 0.3, 1)",
+                    animation:
+                      "attachCheckPop 0.4s cubic-bezier(0.16, 1, 0.3, 1)",
                   }}
                 >
                   <Check className="h-2.5 w-2.5 text-white" strokeWidth={3} />
@@ -139,35 +119,17 @@ export function AttachMeetingNotes({
             )}
           </div>
         </div>
-
-        {phase === "attached" && (
-          <button
-            onClick={() => setExpanded((v) => !v)}
-            className="cursor-pointer flex-none"
-            style={{
-              padding: "4px 10px",
-              border: "1px solid #dbdbe5",
-              borderRadius: 6,
-              background: "#ffffff",
-              fontSize: 11,
-              fontWeight: 500,
-              color: "#010507",
-            }}
-          >
-            {expanded ? "Hide" : "Show notes"}
-          </button>
-        )}
       </div>
 
       {phase === "attaching" && (
         <div
           style={{
-            marginTop: 10,
             height: 4,
             background: "rgba(190, 194, 255, 0.25)",
             borderRadius: 999,
             overflow: "hidden",
             position: "relative",
+            marginBottom: 8,
           }}
         >
           <div
@@ -184,27 +146,29 @@ export function AttachMeetingNotes({
         </div>
       )}
 
-      {phase === "attached" && expanded && (
-        <pre
+      {imageUrl && (
+        <img
+          src={imageUrl}
+          alt={filename}
           style={{
-            marginTop: 10,
-            padding: 10,
+            display: "block",
+            width: "100%",
+            height: "auto",
+            maxHeight: 360,
+            objectFit: "contain",
             background: "#ffffff",
             border: "1px solid #dbdbe5",
             borderRadius: 6,
-            fontFamily: "Spline Sans Mono, ui-monospace, monospace",
-            fontSize: 11,
-            lineHeight: 1.55,
-            color: "#010507",
-            whiteSpace: "pre-wrap",
-            wordBreak: "break-word",
-            maxHeight: 320,
-            overflow: "auto",
-            animation: "attachContentSlide 0.32s ease-out",
+            opacity: phase === "attached" ? 1 : 0.55,
+            filter: phase === "attached" ? "none" : "blur(3px)",
+            transition:
+              "opacity 320ms ease-out, filter 320ms ease-out",
+            animation:
+              phase === "attached"
+                ? "attachImageReveal 0.32s ease-out"
+                : undefined,
           }}
-        >
-          {content}
-        </pre>
+        />
       )}
     </div>
   );

@@ -11,8 +11,8 @@ interface AgentSelectorProps {
 }
 
 const AGENTS: { id: AgentId; label: string; subtitle: string }[] = [
-  { id: "langgraph", label: "LangGraph", subtitle: "Python · openai:gpt-4.1" },
-  { id: "adk", label: "Google ADK", subtitle: "Python · same tool surface" },
+  { id: "langgraph", label: "Cowork", subtitle: "LangGraph Agent" },
+  { id: "adk", label: "Dashboard Designer", subtitle: "ADK Agent" },
 ];
 
 /**
