@@ -51,6 +51,10 @@ const COWORK_SUGGESTIONS = [
 // feedback_suggestion_chips memory note).
 const DASHBOARD_SUGGESTIONS = [
   {
+    title: "Build the dashboard",
+    message: "Build me a dashboard from the current backlog.",
+  },
+  {
     title: "Sarah's workload",
     message: "Show me everything Sarah is working on.",
   },

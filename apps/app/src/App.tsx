@@ -65,6 +65,7 @@ type HardcodedDashboardResponse = {
   toolCall?: HardcodedToolCall;
 };
 
+const BUILD_DASHBOARD_TITLE = "Build the dashboard";
 const SARAH_PROFILE_TITLE = "Sarah's workload";
 const URGENT_RIGHT_NOW_TITLE = "Urgent right now";
 const WHATS_IN_FLIGHT_TITLE = "What's in flight?";
@@ -74,6 +75,15 @@ const BAR_CHART_BY_STATUS_TITLE = "Bar chart by status";
 
 const HARDCODED_DASHBOARD_RESPONSES: Record<string, HardcodedDashboardResponse> =
   {
+    [BUILD_DASHBOARD_TITLE]: {
+      // Empty dashboard state = full backlog view with no filter applied.
+      // The chip handler also opens app mode so the dashboard pane slides
+      // in while the assistant reply streams in, giving the impression of
+      // the dashboard being assembled on the fly.
+      dashboard: {},
+      assistantContent:
+        "Built you a dashboard from the current backlog — totals up top, donut by status, urgency bars, and a per-assignee breakdown. Ask me to filter or zoom into anyone.",
+    },
     [SARAH_PROFILE_TITLE]: {
       // Switches the dashboard pane into the staggered-entrance person
       // profile view (apps/app/src/components/dashboard/person-profile.tsx).
@@ -169,9 +179,14 @@ interface ChatWiredProps {
   // it out of the way of the top-right ModeToggle in chat mode.
   agentId: AgentId;
   onAgentChange: (id: AgentId) => void;
+  // Called from the hardcoded ADK chip handler so clicking a Dashboard
+  // Designer suggestion in chat-only mode pops the right pane open while
+  // the assistant reply streams in. Without it, users see the canned text
+  // but the dashboard never reveals itself.
+  onOpenApp: () => void;
 }
 
-function ChatWired({ agentId, onAgentChange }: ChatWiredProps) {
+function ChatWired({ agentId, onAgentChange, onOpenApp }: ChatWiredProps) {
   // Inside CopilotChatConfigurationProvider so useConfigureSuggestions and
   // useFrontendTool resolve against the active chat config's agentId. Hoisted
   // up to HomePage caused suggestions to register before the chat config was
@@ -228,6 +243,21 @@ function ChatWired({ agentId, onAgentChange }: ChatWiredProps) {
           role: "user",
           content: suggestion.message,
         });
+
+        // Open the app pane immediately so the dashboard slides in while
+        // the canned reply "loads". Most ADK chips need the dashboard
+        // visible to make sense (personProfile, issueTable, barChart);
+        // even Reset benefits from the pane being open. Doing this in the
+        // same tick as the user-message addMessage lets the layout shift
+        // begin before the artificial latency below.
+        onOpenApp();
+
+        // Simulate agent latency. Without this gap the assistant message
+        // appears in the same frame as the user message — instant replies
+        // read as "hardcoded" and break the demo's illusion that an LLM
+        // is on the other end. ~850ms is close to the median first-token
+        // latency of a real model call.
+        await new Promise<void>((resolve) => setTimeout(resolve, 850));
 
         // Lazy-seed agent.state.issues from SEED_ISSUES so inline
         // generative-UI tools (issueTable / issueCard / personProfile)
@@ -315,7 +345,7 @@ function ChatWired({ agentId, onAgentChange }: ChatWiredProps) {
         console.error("[ChatWired] runAgent failed after suggestion", err);
       }
     },
-    [agent, copilotkit],
+    [agent, copilotkit, onOpenApp],
   );
 
   // Function-component input slot. We need closure access to the bound
@@ -507,6 +537,13 @@ function HomePage() {
                     setAgentId(id);
                     setThreadId(crypto.randomUUID());
                   }}
+                  // Hardcoded ADK chips call this so the dashboard pane
+                  // pops open the moment the chip is clicked, even if the
+                  // user was in chat-only mode (e.g. straight off a New
+                  // thread). Without this, the assistant reply appears
+                  // but the dashboard stays hidden and the chip looks
+                  // broken.
+                  onOpenApp={() => setLayoutMode("app")}
                 />
               }
               // Agent picker drives the right pane. langgraph (Cowork) shows
