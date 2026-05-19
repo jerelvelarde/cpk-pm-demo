@@ -25,6 +25,7 @@ import {
   IssueList,
   IssueListProps,
 } from "@/components/generative-ui/issue-list";
+import { ApprovalCard } from "@/components/generative-ui/approval-card";
 import { ToolReasoning } from "@/components/tool-rendering";
 
 export const useGenerativeUIExamples = () => {
@@ -44,6 +45,39 @@ export const useGenerativeUIExamples = () => {
     }),
     render: ({ respond, status, args }) => {
       return <MeetingTimePicker status={status} respond={respond} {...args} />;
+    },
+  });
+
+  // HITL for single-issue mutations. Pairs with the agent's
+  // propose_issue_change tool — agent calls that, frontend renders the
+  // approval card here, user accepts / edits / rejects.
+  useHumanInTheLoop({
+    name: "proposeIssueMutation",
+    description:
+      "Ask the user to approve a mutation to a single issue. Use for any single-issue change (status move, assignee, priority).",
+    parameters: z.object({
+      issueId: z.string().describe("The issue id, e.g. ISS-101"),
+      changes: z
+        .object({
+          status: z
+            .enum(["Backlog", "Todo", "In Progress", "In Review", "Done"])
+            .optional(),
+          priority: z.enum(["Urgent", "High", "Med", "Low"]).optional(),
+          assignee: z.string().nullable().optional(),
+          title: z.string().optional(),
+          description: z.string().optional(),
+        })
+        .describe("The partial issue changes to apply on accept."),
+    }),
+    render: ({ respond, status, args }) => {
+      return (
+        <ApprovalCard
+          status={status}
+          respond={respond}
+          issueId={args.issueId}
+          changes={args.changes ?? {}}
+        />
+      );
     },
   });
 

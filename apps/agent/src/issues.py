@@ -343,17 +343,27 @@ def propose_issue_change(
     runtime: ToolRuntime,
 ) -> str:
     """
-    Propose a change to a single issue and ask the user to approve it via the
-    frontend approval UI. The frontend HITL handler (proposeIssueMutation)
-    renders an Accept / Reject / Edit card.
+    Propose a change to a single issue and ask the user to approve it.
 
-    `changes` is a partial Issue dict — e.g. {"status": "Done"} or
-    {"assignee": "Priya", "priority": "High"}. The frontend tool actually
-    performs the mutation once the user accepts (or applies their edits).
+    After calling this, the model MUST call the frontend HITL tool
+    `proposeIssueMutation` with the same {issueId, changes} payload. The user
+    will see an in-chat Accept / Reject / Edit card. If accepted, the
+    frontend applies the change directly to agent state — you do NOT need to
+    follow up with manage_issues.
+
+    `changes` is a partial Issue dict:
+        {"status": "Done"}
+        {"assignee": "Priya", "priority": "High"}
+        {"title": "New title"}
+
+    Use this for single-issue edits. For bulk changes (sprint planning,
+    importing from a PDF), use manage_issues directly.
     """
     return (
-        f"Proposed change to {issue_id}: {changes}. "
-        "Awaiting user approval via the approval card."
+        f"Recorded a proposed change to {issue_id}: {changes}. "
+        f"Now call the proposeIssueMutation frontend tool with "
+        f"issueId='{issue_id}' and changes={changes!r} so the user can "
+        "approve, edit, or reject it in chat."
     )
 
 
