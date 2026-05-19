@@ -1,0 +1,131 @@
+{
+  "name": "dashboard-designer",
+  "description": "Mock flow for the ADK Dashboard Designer agent. Each fixture is gated on systemMessage 'Dashboard Designer' so it only fires when the ADK agent is selected (the LangGraph PM-copilot uses a different system prompt). The agent's job in this mode is to RESHAPE the dashboard via the updateDashboard frontend tool — never to describe stats in prose when a filter would surface them visually.",
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "show me everything Sarah",
+        "systemMessage": "Dashboard Designer",
+        "hasToolResult": false
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "id": "call_dashboard_sarah",
+            "name": "updateDashboard",
+            "arguments": "{\"filter\":{\"assignee\":\"Sarah\"},\"focus\":\"Showing every issue Sarah owns across all statuses and priorities.\"}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "toolCallId": "call_dashboard_sarah",
+        "systemMessage": "Dashboard Designer"
+      },
+      "response": {
+        "content": "Sarah's work is up — three open, mix of high and med."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "filter the dashboard to just the urgent",
+        "systemMessage": "Dashboard Designer",
+        "hasToolResult": false
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "id": "call_dashboard_urgent",
+            "name": "updateDashboard",
+            "arguments": "{\"filter\":{\"priority\":\"Urgent\"},\"focus\":\"Only urgent-priority issues — the ones to unblock first.\"}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "toolCallId": "call_dashboard_urgent",
+        "systemMessage": "Dashboard Designer"
+      },
+      "response": {
+        "content": "Three urgent — Safari payment, Postgres pool, and Slack dedupe. Two are already in flight."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "break down the dashboard by assignee",
+        "systemMessage": "Dashboard Designer",
+        "hasToolResult": false
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "id": "call_dashboard_by_assignee",
+            "name": "updateDashboard",
+            "arguments": "{\"filter\":{},\"focus\":\"Full backlog broken down by who owns what — Alex is carrying the most.\"}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "toolCallId": "call_dashboard_by_assignee",
+        "systemMessage": "Dashboard Designer"
+      },
+      "response": {
+        "content": "Alex is the heaviest at 5, then Sarah and Jordan at 4-5 each. Two issues are unassigned."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "show me everything currently in progress",
+        "systemMessage": "Dashboard Designer",
+        "hasToolResult": false
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "id": "call_dashboard_in_progress",
+            "name": "updateDashboard",
+            "arguments": "{\"filter\":{\"status\":\"In Progress\"},\"focus\":\"In-flight work only — what the team is actively shipping this week.\"}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "toolCallId": "call_dashboard_in_progress",
+        "systemMessage": "Dashboard Designer"
+      },
+      "response": {
+        "content": "Four in flight, with two urgent and one high — payments and infra dominate."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "reset the filter",
+        "systemMessage": "Dashboard Designer",
+        "hasToolResult": false
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "id": "call_dashboard_reset",
+            "name": "updateDashboard",
+            "arguments": "{\"filter\":{},\"focus\":\"Full backlog — no filter applied.\"}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "toolCallId": "call_dashboard_reset",
+        "systemMessage": "Dashboard Designer"
+      },
+      "response": {
+        "content": "Cleared. Showing the full backlog."
+      }
+    }
+  ]
+}

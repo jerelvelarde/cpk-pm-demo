@@ -9,6 +9,7 @@ import {
 } from "@copilotkit/react-core/v2";
 import { ExampleLayout } from "@/components/example-layout";
 import { PmBoard } from "@/components/pm-board";
+import { Dashboard } from "@/components/dashboard";
 import { ThreadsDrawer } from "@/components/threads-drawer";
 import { ThemeShell } from "@/components/theme-shell";
 import { AgentSelector, type AgentId } from "@/components/agent-selector";
@@ -132,7 +133,10 @@ function HomePage() {
                 />
               }
               chatContent={<ChatWired />}
-              appContent={<PmBoard />}
+              // Agent picker drives the right pane. langgraph (Cowork) shows
+              // the kanban board; adk (Dashboard Designer) swaps to the stats
+              // dashboard that the ADK agent drives via updateDashboard.
+              appContent={agentId === "adk" ? <Dashboard /> : <PmBoard />}
             />
             <EventInspector />
           </CopilotChatConfigurationProvider>
