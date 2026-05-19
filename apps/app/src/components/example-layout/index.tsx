@@ -86,20 +86,20 @@ export function ExampleLayout({
       </div>
 
       {/* Board panel */}
-      <div
-        className={`h-full overflow-hidden flex-1 ${
-          mode === "app" ? "max-lg:w-full" : "w-0"
-        }`}
-        style={{
-          background: "rgba(255, 255, 255, 0.4)",
-          border: mode === "app" ? "2px solid #ffffff" : "0",
-          borderRadius: 8,
-          backdropFilter: "blur(8px)",
-          WebkitBackdropFilter: "blur(8px)",
-        }}
-      >
-        <div className="w-full h-full">{appContent}</div>
-      </div>
+      {mode === "app" && (
+        <div
+          className="h-full overflow-hidden flex-1 max-lg:w-full"
+          style={{
+            background: "rgba(255, 255, 255, 0.4)",
+            border: "2px solid #ffffff",
+            borderRadius: 8,
+            backdropFilter: "blur(8px)",
+            WebkitBackdropFilter: "blur(8px)",
+          }}
+        >
+          <div className="w-full h-full">{appContent}</div>
+        </div>
+      )}
     </div>
   );
 }
