@@ -1,10 +1,21 @@
 import { serve } from "@hono/node-server";
+import { HttpAgent } from "@ag-ui/client";
 import {
   CopilotRuntime,
   CopilotKitIntelligence,
   createCopilotHonoHandler,
 } from "@copilotkit/runtime/v2";
 import { LangGraphAgent } from "@copilotkit/runtime/langgraph";
+import { WhisperTranscriptionService } from "./whisper-transcription.js";
+
+const useMock = process.env.USE_MOCK === "1";
+
+if (useMock) {
+  process.env.OPENAI_BASE_URL =
+    process.env.OPENAI_BASE_URL ?? "http://localhost:4010/v1";
+  process.env.OPENAI_API_KEY = process.env.OPENAI_API_KEY ?? "mock";
+  console.log("[bff] USE_MOCK=1 — routing OpenAI to", process.env.OPENAI_BASE_URL);
+}
 
 const intelligence = new CopilotKitIntelligence({
   apiKey:
@@ -13,11 +24,26 @@ const intelligence = new CopilotKitIntelligence({
   wsUrl: process.env.INTELLIGENCE_GATEWAY_WS_URL ?? "ws://localhost:4401",
 });
 
-const agent = new LangGraphAgent({
+// LangGraph agent — the original PM copilot. graphId is the langgraph.json
+// id from apps/agent.
+const langgraphAgent = new LangGraphAgent({
   deploymentUrl:
     process.env.LANGGRAPH_DEPLOYMENT_URL ?? "http://localhost:8123",
   graphId: "sample_agent",
   langsmithApiKey: process.env.LANGSMITH_API_KEY ?? "",
+});
+
+// Google ADK agent — same tool surface, exposed as a vanilla AG-UI HTTP
+// endpoint by ag-ui-adk's FastAPI plumbing. We point HttpAgent at it; the
+// frontend uses whichever agent the user picks from the agent selector.
+const adkAgent = new HttpAgent({
+  url:
+    process.env.ADK_AGENT_URL ?? "http://localhost:8124/",
+});
+
+const transcriptionService = new WhisperTranscriptionService({
+  apiKey: process.env.OPENAI_API_KEY,
+  baseURL: process.env.OPENAI_BASE_URL,
 });
 
 const app = createCopilotHonoHandler({
@@ -26,8 +52,15 @@ const app = createCopilotHonoHandler({
     intelligence,
     identifyUser: () => ({ id: "jordan-beamson", name: "Jordan Beamson" }),
     licenseToken: process.env.COPILOTKIT_LICENSE_TOKEN,
-    agents: { default: agent },
+    agents: {
+      // The frontend agent selector picks one of these by name. Both expose
+      // the same tools — manage_issues / propose_issue_change / etc.
+      default: langgraphAgent,
+      langgraph: langgraphAgent,
+      adk: adkAgent,
+    },
     openGenerativeUI: true,
+    transcriptionService,
     a2ui: {
       injectA2UITool: false,
     },

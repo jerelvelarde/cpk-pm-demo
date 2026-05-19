@@ -5,8 +5,10 @@ import {
   ArchiveRestore,
   ChevronLeft,
   ChevronRight,
+  Pencil,
   Plus,
   Rows3,
+  Search,
   Trash2,
 } from "lucide-react";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
@@ -57,12 +59,16 @@ export default function ThreadsDrawer({
     id: string;
     title: string;
   } | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
   const deleteTriggerRef = useRef<HTMLElement | null>(null);
 
   const {
     threads,
     archiveThread,
     deleteThread,
+    renameThread,
     error,
     isLoading,
     hasMoreThreads,
@@ -208,6 +214,13 @@ export default function ThreadsDrawer({
     console.error("Unable to load threads", error);
   }
 
+  const filteredDisplayThreads: DrawerThread[] = searchQuery
+    ? displayThreads.filter((t) => {
+        const haystack = (t.name ?? UNTITLED_THREAD_LABEL).toLowerCase();
+        return haystack.includes(searchQuery.toLowerCase());
+      })
+    : displayThreads;
+
   if (!isOpen) {
     return (
       <aside
@@ -257,18 +270,22 @@ export default function ThreadsDrawer({
         <div className={styles.drawerSurface}>
           <div className={styles.drawerHeader}>
             <div className={styles.drawerHeaderMain}>
-              <h2 className={styles.drawerTitle}>Threads</h2>
+              <h2 className={styles.drawerTitle}>
+                {showArchived ? "Archived" : "Threads"}
+              </h2>
             </div>
             <div className={styles.headerActions}>
-              <button
-                aria-label="Create thread"
-                className={styles.newThreadButton}
-                type="button"
-                onClick={() => onThreadChange(undefined)}
-              >
-                <Plus size={14} />
-                <span>New thread</span>
-              </button>
+              {!showArchived && (
+                <button
+                  aria-label="Create thread"
+                  className={styles.newThreadButton}
+                  type="button"
+                  onClick={() => onThreadChange(undefined)}
+                >
+                  <Plus size={14} />
+                  <span>New thread</span>
+                </button>
+              )}
               <button
                 aria-label="Collapse threads drawer"
                 className={styles.iconButton}
@@ -280,37 +297,16 @@ export default function ThreadsDrawer({
             </div>
           </div>
 
-          <div className={styles.filterBar}>
-            <div
-              aria-label="Thread filter"
-              className={styles.segmented}
-              role="tablist"
-            >
-              <button
-                aria-selected={!showArchived}
-                className={cx(
-                  styles.segmentedOption,
-                  !showArchived && styles.segmentedOptionActive,
-                )}
-                role="tab"
-                type="button"
-                onClick={() => setShowArchived(false)}
-              >
-                Active
-              </button>
-              <button
-                aria-selected={showArchived}
-                className={cx(
-                  styles.segmentedOption,
-                  showArchived && styles.segmentedOptionActive,
-                )}
-                role="tab"
-                type="button"
-                onClick={() => setShowArchived(true)}
-              >
-                All
-              </button>
-            </div>
+          <div className={styles.searchBar}>
+            <Search size={13} className={styles.searchIcon} aria-hidden />
+            <input
+              type="search"
+              placeholder="Search threads"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className={styles.searchInput}
+              aria-label="Search threads"
+            />
           </div>
 
           <div className={styles.drawerContent}>
@@ -349,20 +345,31 @@ export default function ThreadsDrawer({
                   </div>
                 ))}
               </div>
-            ) : displayThreads.length === 0 ? (
+            ) : filteredDisplayThreads.length === 0 ? (
               <div className={styles.emptyState}>
                 <div className={styles.emptyCard}>
-                  <p className={styles.emptyTitle}>No threads yet</p>
+                  <p className={styles.emptyTitle}>
+                    {searchQuery
+                      ? "No matches"
+                      : showArchived
+                        ? "No archived threads"
+                        : "No threads yet"}
+                  </p>
                   <p className={styles.emptyMessage}>
-                    Create a thread to start a fresh conversation.
+                    {searchQuery
+                      ? `Nothing matches "${searchQuery}". Try a different query.`
+                      : showArchived
+                        ? "Threads you archive show up here."
+                        : "Create a thread to start a fresh conversation."}
                   </p>
                 </div>
               </div>
             ) : (
               <div className={styles.threadList}>
-                {displayThreads.map((thread) => {
+                {filteredDisplayThreads.map((thread) => {
                   const hasTitle = thread.name !== null;
                   const title = thread.name ?? UNTITLED_THREAD_LABEL;
+                  const isRenaming = renamingId === thread.id;
 
                   return (
                     <div key={thread.id} className={styles.threadRow}>
@@ -382,21 +389,52 @@ export default function ThreadsDrawer({
                       >
                         <span aria-hidden className={styles.threadAccent} />
                         <span className={styles.threadBody}>
-                          <span
-                            className={cx(
-                              styles.threadTitle,
-                              !hasTitle && styles.threadTitlePlaceholder,
-                              revealedTitleIds[thread.id] &&
-                                styles.threadTitleAnimated,
-                            )}
-                          >
-                            {title}
-                            {thread.archived && (
-                              <span className={styles.archivedBadge}>
-                                Archived
-                              </span>
-                            )}
-                          </span>
+                          {isRenaming ? (
+                            <input
+                              autoFocus
+                              value={renameValue}
+                              onChange={(e) => setRenameValue(e.target.value)}
+                              onClick={(e) => e.stopPropagation()}
+                              onBlur={() => {
+                                const trimmed = renameValue.trim();
+                                if (trimmed && trimmed !== title) {
+                                  renameThread(thread.id, trimmed).catch(
+                                    (err: unknown) =>
+                                      console.error("Rename failed", err),
+                                  );
+                                }
+                                setRenamingId(null);
+                                setRenameValue("");
+                              }}
+                              onKeyDown={(e) => {
+                                e.stopPropagation();
+                                if (e.key === "Enter") {
+                                  (e.currentTarget as HTMLInputElement).blur();
+                                } else if (e.key === "Escape") {
+                                  setRenamingId(null);
+                                  setRenameValue("");
+                                }
+                              }}
+                              className={styles.renameInput}
+                              aria-label="Rename thread"
+                            />
+                          ) : (
+                            <span
+                              className={cx(
+                                styles.threadTitle,
+                                !hasTitle && styles.threadTitlePlaceholder,
+                                revealedTitleIds[thread.id] &&
+                                  styles.threadTitleAnimated,
+                              )}
+                            >
+                              {title}
+                              {thread.archived && (
+                                <span className={styles.archivedBadge}>
+                                  Archived
+                                </span>
+                              )}
+                            </span>
+                          )}
                           <span className={styles.threadMeta}>
                             {formatThreadTimestamp(
                               thread.lastRunAt ?? thread.updatedAt,
@@ -405,6 +443,22 @@ export default function ThreadsDrawer({
                         </span>
                       </button>
                       <div className={styles.threadActions}>
+                        <button
+                          aria-label={`Rename ${title}`}
+                          className={cx(
+                            styles.iconButton,
+                            styles.threadActionButton,
+                            styles.tooltip,
+                          )}
+                          data-tooltip="Rename thread"
+                          type="button"
+                          onClick={() => {
+                            setRenamingId(thread.id);
+                            setRenameValue(thread.name ?? "");
+                          }}
+                        >
+                          <Pencil size={14} />
+                        </button>
                         {thread.archived ? (
                           <button
                             aria-label={`Restore ${title}`}
@@ -477,6 +531,29 @@ export default function ThreadsDrawer({
                 )}
               </div>
             )}
+          </div>
+
+          <div className={styles.drawerFooter}>
+            <button
+              className={styles.footerLink}
+              type="button"
+              onClick={() => {
+                setShowArchived((v) => !v);
+                setSearchQuery("");
+              }}
+            >
+              {showArchived ? (
+                <>
+                  <ChevronLeft size={13} />
+                  <span>Back to active</span>
+                </>
+              ) : (
+                <>
+                  <Archive size={13} />
+                  <span>Show archived</span>
+                </>
+              )}
+            </button>
           </div>
         </div>
       </aside>

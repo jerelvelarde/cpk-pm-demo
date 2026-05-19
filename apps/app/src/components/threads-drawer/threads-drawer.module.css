@@ -6,28 +6,34 @@
   height: 100dvh;
   width: 100%;
   overflow: hidden;
+  /* Inherit the ThemeShell background so the blur circles show through. */
+  background: transparent;
+  padding: 8px;
+  gap: 8px;
 }
 
 .drawer {
   position: relative;
   display: flex;
-  min-height: 100vh;
-  min-height: 100svh;
-  height: 100dvh;
-  background: var(--card);
-  border-right: 1px solid var(--border);
+  height: calc(100dvh - 16px);
+  /* Glass: translucent white over the lavender ThemeShell background */
+  background: rgba(255, 255, 255, 0.5);
+  border: 2px solid #ffffff;
+  border-radius: 8px;
   transition:
     width 180ms ease,
     box-shadow 180ms ease;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
 .drawerOpen {
-  width: 18rem;
-  box-shadow: 4px 0 20px rgb(0 0 0 / 0.04);
+  width: 17rem;
+  box-shadow: 0 1px 3px 0 rgba(1, 5, 7, 0.06);
 }
 
 .drawerClosed {
-  width: 3.5rem;
+  width: 3.25rem;
 }
 
 .drawerSurface {
@@ -36,6 +42,7 @@
   height: 100%;
   flex-direction: column;
   overflow: hidden;
+  border-radius: 6px;
 }
 
 .drawerHeader {
@@ -44,7 +51,7 @@
   justify-content: space-between;
   gap: 0.75rem;
   padding: 1rem 1rem 0.75rem;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid #dbdbe5;
 }
 
 .drawerHeaderMain {
@@ -55,12 +62,14 @@
   font-family: var(--font-body);
 }
 
+/* App title — 18px / weight 300 (light), per dojo spec */
 .drawerTitle {
   margin: 0;
-  font-size: 0.95rem;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  color: var(--foreground);
+  font-size: 18px;
+  font-weight: 300;
+  line-height: 20px;
+  letter-spacing: 0;
+  color: var(--text-primary);
 }
 
 .headerActions {
@@ -102,73 +111,112 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.4rem;
-  min-height: 2.25rem;
-  padding: 0.5rem 0.75rem;
-  border: 0;
-  border-radius: var(--radius);
-  background: var(--primary);
-  color: var(--primary-foreground);
-  font-size: 0.8rem;
-  font-weight: 600;
+  gap: 0.35rem;
+  min-height: 32px;
+  padding: 6px 10px;
+  border: 1px solid #dbdbe5;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.65);
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 500;
   cursor: pointer;
   transition:
-    opacity 140ms ease,
+    background 140ms ease,
     transform 140ms ease;
 }
 
 .newThreadButton:hover {
-  opacity: 0.9;
+  background: #ffffff;
 }
 
-.filterBar {
+.searchBar {
+  position: relative;
   display: flex;
   align-items: center;
-  padding: 0.5rem 1rem;
-  border-bottom: 1px solid var(--border);
+  padding: 0 1rem 0.5rem;
+  border-bottom: 1px solid #dbdbe5;
 }
 
-.segmented {
-  display: inline-flex;
-  width: 100%;
-  padding: 0.2rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--secondary);
-  gap: 0.15rem;
+.searchIcon {
+  position: absolute;
+  left: 1.5rem;
+  color: #838389;
+  pointer-events: none;
 }
 
-.segmentedOption {
+.searchInput {
   flex: 1;
-  min-height: 1.75rem;
-  padding: 0.3rem 0.75rem;
+  height: 32px;
+  padding: 0 8px 0 28px;
+  border: 1px solid #dbdbe5;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.65);
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--text-primary);
+  outline: none;
+  transition:
+    background 140ms ease,
+    border-color 140ms ease;
+}
+
+.searchInput::placeholder {
+  color: var(--text-disabled);
+}
+
+.searchInput:focus {
+  background: #ffffff;
+  border-color: var(--ring);
+}
+
+.renameInput {
+  width: 100%;
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+  background: #ffffff;
+  border: 1px solid var(--ring);
+  border-radius: 4px;
+  padding: 2px 6px;
+  outline: none;
+}
+
+.drawerFooter {
+  flex-shrink: 0;
+  padding: 0.5rem 1rem 0.75rem;
+  border-top: 1px solid #dbdbe5;
+}
+
+.footerLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  height: 28px;
+  padding: 0 0.5rem;
+  margin-left: -0.25rem;
   border: 0;
-  border-radius: calc(var(--radius) - 0.15rem);
+  border-radius: 6px;
   background: transparent;
   font-family: var(--font-body);
-  font-size: 0.75rem;
+  font-size: 12px;
   font-weight: 500;
-  color: var(--muted-foreground);
+  color: var(--text-secondary);
   cursor: pointer;
   transition:
     background-color 140ms ease,
-    color 140ms ease,
-    box-shadow 140ms ease;
+    color 140ms ease;
 }
 
-.segmentedOption:hover {
-  color: var(--foreground);
+.footerLink:hover {
+  background: rgba(255, 255, 255, 0.5);
+  color: var(--text-primary);
 }
 
-.segmentedOption:focus-visible {
+.footerLink:focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 2px;
-}
-
-.segmentedOptionActive {
-  background: var(--card);
-  color: var(--foreground);
-  box-shadow: 0 1px 2px rgb(0 0 0 / 0.06);
 }
 
 .drawerContent {
@@ -216,17 +264,16 @@
 
 .threadItem:hover,
 .threadItem:focus-visible {
-  background: var(--secondary);
+  background: rgba(255, 255, 255, 0.5);
 }
 
 .threadRow:hover .threadItem,
 .threadRow:focus-within .threadItem {
-  padding-right: 3.5rem;
+  padding-right: 5.5rem;
 }
 
 .threadItemSelected {
-  background: var(--accent);
-  box-shadow: inset 0 0 0 1px var(--border);
+  background: rgba(255, 255, 255, 0.7);
 }
 
 .threadItemAnimatingIn {
@@ -258,9 +305,10 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 0.82rem;
-  font-weight: 600;
-  color: var(--foreground);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.25;
+  color: var(--text-primary);
 }
 
 .threadTitlePlaceholder {
@@ -278,8 +326,9 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 0.7rem;
-  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 1.625;
+  color: var(--text-disabled);
 }
 
 .threadItemArchived .threadTitle {

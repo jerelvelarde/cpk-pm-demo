@@ -8,14 +8,20 @@
     "preinstall": "node scripts/check-prereqs.mjs install",
     "predev": "node scripts/check-prereqs.mjs dev",
     "dev:infra": "docker compose up -d --wait",
-    "dev": "npm run dev:infra && concurrently -k -n app,bff,agent -c auto \"npm run dev:app\" \"npm run dev:bff\" \"npm run dev:agent\"",
+    "dev": "npm run dev:infra && concurrently -k -n app,bff,agent,adk -c auto \"npm run dev:app\" \"npm run dev:bff\" \"npm run dev:agent\" \"npm run dev:agent-adk\"",
     "dev:app": "npm run dev --workspace @repo/app",
     "dev:agent": "npm run dev --workspace @repo/agent",
+    "dev:agent-adk": "npm run dev --workspace @repo/agent-adk",
     "dev:bff": "npm run dev --workspace @repo/bff",
+    "aimock:up": "npx -p @copilotkit/aimock llmock --port 4010 --fixtures ./fixtures",
+    "aimock:record": "npx -p @copilotkit/aimock llmock --record --provider-openai https://api.openai.com --fixtures ./fixtures --port 4010",
+    "dev:mock": "concurrently -k -n mock,app,bff,agent -c auto \"npm run aimock:up\" \"USE_MOCK=1 npm run dev:app\" \"USE_MOCK=1 npm run dev:bff\" \"USE_MOCK=1 npm run dev:agent\"",
+    "seed:threads": "node scripts/seed-threads.mjs",
     "build": "npm run build --workspace @repo/bff && npm run build --workspace @repo/app",
     "clean": "rm -rf apps/app/dist apps/bff/dist"
   },
   "devDependencies": {
+    "@copilotkit/aimock": "^1.26.1",
     "concurrently": "^9.1.2"
   },
   "overrides": {

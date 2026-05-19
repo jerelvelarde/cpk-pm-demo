@@ -49,6 +49,15 @@ bun.lockb
 # LangGraph API
 .langgraph_api
 
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+
+# uv
+.python-version.lock
+
 # Git worktrees
 .worktrees
 
