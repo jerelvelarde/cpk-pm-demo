@@ -23,9 +23,12 @@ export const IssueCardProps = z.object({
     .enum(["Backlog", "Todo", "In Progress", "In Review", "Done"])
     .describe("Current kanban status"),
   priority: z.enum(["Urgent", "High", "Med", "Low"]),
-  assignee: z.string().nullable().optional(),
+  // No .nullable() — Google ADK's Schema validator rejects array-form
+  // types like ["string", "null"] (Pydantic enum failure). Frontend treats
+  // missing assignee / dueDate as null already, so .optional() is enough.
+  assignee: z.string().optional(),
   labels: z.array(z.string()).optional(),
-  dueDate: z.string().nullable().optional(),
+  dueDate: z.string().optional(),
 });
 
 export type IssueCardArgs = z.infer<typeof IssueCardProps>;

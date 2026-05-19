@@ -18,7 +18,7 @@ if os.environ.get("USE_MOCK") == "1":
 
 from fastapi import FastAPI
 
-from ag_ui_adk import ADKAgent, add_adk_fastapi_endpoint
+from ag_ui_adk import ADKAgent, AGUIToolset, add_adk_fastapi_endpoint
 from google.adk.agents import Agent as ADKBaseAgent
 from google.adk.models.lite_llm import LiteLlm
 
@@ -31,27 +31,37 @@ from src.tools import (
 
 
 SYSTEM_PROMPT = """
-You are a project-management copilot. You help an engineering team triage,
-plan, and ship work. The user can see a kanban with five columns
-(Backlog / Todo / In Progress / In Review / Done). Issues have an id, title,
-description, status, priority (Urgent/High/Med/Low), optional assignee,
-labels, and due date.
+You are the Dashboard Designer — an analytics copilot for an engineering
+team's project board. The user sees a dashboard pane (NOT a kanban) with
+aggregated stats: total issues, in-progress count, urgent count, unassigned
+count, plus breakdowns by status, priority, and assignee. Each issue has an
+id, title, status (Backlog / Todo / In Progress / In Review / Done),
+priority (Urgent / High / Med / Low), optional assignee, and labels.
 
-Keep replies to 1-2 sentences unless asked for detail.
+Your job is to answer questions about the backlog by RESHAPING THE DASHBOARD
+rather than describing the answer in chat. When the user asks "show me
+Sarah's work", "filter to urgent only", "who has the most open work?",
+"break it down by priority" — call updateDashboard with the appropriate
+filter and a short focus sentence; the dashboard re-derives every chart
+from the filtered set immediately.
+
+Keep replies to ONE short sentence after a tool call. The dashboard does
+the heavy explaining. If the user asks for a number that's plainly visible
+after a filter, just confirm it. If they ask something the filter can't
+express (e.g. trend over time, comparisons between two filters), answer in
+chat without a tool call.
 
 Tools:
-- get_issues: read the board.
-- manage_issues: bulk replace.
-- propose_issue_change: single edit, asks user to approve. Always follow
-  up with the proposeIssueMutation frontend tool.
-- issueList (frontend tool): call directly with issueIds=[...] to surface
-  a set of issues inline in chat as glass cards. Use whenever the user
-  asks to show / list / see specific issues.
-- attachMeetingNotes (frontend tool): call when the user shares planning
-  notes inline. Pass filename, size, and the full content as a string —
-  the frontend animates an "attached file" card so the user can see what
-  document you're working from before you propose changes.
-- analyze_backlog: open-ended analysis.
+- updateDashboard (frontend tool): the primary tool. Pass a filter object
+  ({assignee, priority, status, labels}) replacing the previous filter
+  wholesale, plus a one-line `focus` sentence shown in the dashboard
+  header. Pass an empty filter ({}) to reset.
+- get_issues: read the raw issue list when you need facts the filter
+  alone can't surface (e.g. counting a specific subset before answering).
+- analyze_backlog: open-ended analysis when the user asks "what should we
+  cut?" or "what's blocking ship?".
+- manage_issues / propose_issue_change: mutations. Avoid in dashboard
+  mode unless the user explicitly asks to change an issue.
 """.strip()
 
 
@@ -66,11 +76,18 @@ _inner_agent = ADKBaseAgent(
     name="pm_copilot_adk",
     model=_model,
     instruction=SYSTEM_PROMPT,
+    # AGUIToolset() is a placeholder — the ag_ui_adk bridge swaps it for a
+    # ClientProxyToolset at request time, registering whatever frontend
+    # tools the React app sent in this run (updateDashboard, toggleTheme,
+    # applyPlanningChanges, etc). Without it, ADK only sees the four
+    # backend Python tools and rejects every frontend-tool call as
+    # "hallucinated".
     tools=[
         get_issues,
         manage_issues,
         propose_issue_change,
         analyze_backlog,
+        AGUIToolset(),
     ],
 )
 

@@ -39,7 +39,8 @@ export const useGenerativeUIExamples = () => {
   const { theme, setTheme } = useTheme();
   // Bind to the same per-thread agent clone the chat is using. Without
   // agentId from config, useAgent() would resolve to a different default
-  // clone and applyPlanningChanges would mutate state the board never sees.
+  // clone and applyPlanningChanges / updateDashboard would mutate state the
+  // board / dashboard never sees.
   const config = useCopilotChatConfiguration();
   const { agent } = useAgent({ agentId: config?.agentId });
 
@@ -75,7 +76,7 @@ export const useGenerativeUIExamples = () => {
             .enum(["Backlog", "Todo", "In Progress", "In Review", "Done"])
             .optional(),
           priority: z.enum(["Urgent", "High", "Med", "Low"]).optional(),
-          assignee: z.string().nullable().optional(),
+          assignee: z.string().optional(),
           title: z.string().optional(),
           description: z.string().optional(),
         })
@@ -192,7 +193,7 @@ export const useGenerativeUIExamples = () => {
               priority: z
                 .enum(["Urgent", "High", "Med", "Low"])
                 .optional(),
-              assignee: z.string().nullable().optional(),
+              assignee: z.string().optional(),
             }),
           )
           .describe("Partial updates keyed by issue id."),
@@ -211,6 +212,77 @@ export const useGenerativeUIExamples = () => {
           return change ? { ...issue, ...change } : issue;
         });
         agent.setState({ issues: updated });
+      },
+    },
+    [agent],
+  );
+
+  // Dashboard Designer (ADK) — agent-driven filter on the stats dashboard.
+  // The agent calls this with a partial filter + a one-line "focus" summary
+  // shown in the dashboard header. Each call REPLACES the previous filter
+  // wholesale, so the agent should re-send any filters it wants to keep.
+  // Pass an empty filter ({}) to reset. The handler writes to
+  // agent.state.dashboard; the <Dashboard> component re-derives every
+  // aggregate from the filtered set.
+  useFrontendTool(
+    {
+      name: "updateDashboard",
+      description:
+        "Update the Dashboard Designer's filter and focus copy. Call this when the user asks to break down, filter, or focus the dashboard on a slice of the work (e.g. 'show Sarah's tickets', 'urgent only', 'reset'). The filter REPLACES the previous filter; pass an empty filter to clear. The focus string is shown above the stats and should be one short sentence in the assistant's voice ('Showing Sarah's high-priority work.').",
+      parameters: z.object({
+        filter: z
+          .object({
+            // NB: no .nullable() on any field below — Google ADK's Schema
+            // validator rejects JSON-Schema's array-form type (`["string",
+            // "null"]`) and only accepts a single type. Since an empty filter
+            // ({}) already means "clear", null was redundant anyway.
+            assignee: z
+              .string()
+              .optional()
+              .describe(
+                "Assignee name to filter to, e.g. 'Sarah'. Omit to clear.",
+              ),
+            priority: z
+              .enum(["Urgent", "High", "Med", "Low"])
+              .optional(),
+            status: z
+              .enum(["Backlog", "Todo", "In Progress", "In Review", "Done"])
+              .optional(),
+            labels: z
+              .array(z.string())
+              .optional()
+              .describe(
+                "Optional label filter; an issue must have every listed label.",
+              ),
+          })
+          .optional()
+          .describe(
+            "Replacement filter for the dashboard. Empty object {} clears.",
+          ),
+        focus: z
+          .string()
+          .optional()
+          .describe(
+            "One-line summary shown in the dashboard header. Keep under ~80 chars.",
+          ),
+      }),
+      handler: async (args) => {
+        // Strip nulls so JSON serialization stays compact and the empty-filter
+        // case ({}) reliably triggers the "no filter" path in <Dashboard>.
+        const filter: Record<string, unknown> = {};
+        for (const [k, v] of Object.entries(args.filter ?? {})) {
+          if (v !== null && v !== undefined) filter[k] = v;
+        }
+        // Spread the current state so we don't clobber `issues` (the kanban
+        // board mirror) when we only mean to update the dashboard slice.
+        const current = (agent.state as Record<string, unknown>) ?? {};
+        agent.setState({
+          ...current,
+          dashboard: {
+            filter,
+            focus: args.focus,
+          },
+        });
       },
     },
     [agent],

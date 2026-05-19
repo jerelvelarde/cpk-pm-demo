@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   CopilotChat,
   CopilotChatConfigurationProvider,
@@ -9,6 +9,7 @@ import {
 } from "@copilotkit/react-core/v2";
 import { ExampleLayout } from "@/components/example-layout";
 import { PmBoard } from "@/components/pm-board";
+import { Dashboard } from "@/components/dashboard";
 import { ThreadsDrawer } from "@/components/threads-drawer";
 import { ThemeShell } from "@/components/theme-shell";
 import { AgentSelector, type AgentId } from "@/components/agent-selector";
@@ -98,9 +99,56 @@ function ChatWired() {
   );
 }
 
+/**
+ * Demo-resilience patch: listens for "Thread X is locked" RUN_ERROR events
+ * from the CopilotKit Intelligence Platform (a stale Redis lock left behind
+ * when a previous run crashed mid-flight without releasing) and rotates the
+ * local threadId to a fresh UUID. The next chip click goes to a brand-new
+ * thread that can't be locked, so the demo recovers without a docker
+ * restart. The old lock TTLs out on its own.
+ *
+ * Mounted inside CopilotChatConfigurationProvider so useAgent() resolves to
+ * the same per-thread clone the chat is using.
+ */
+function ThreadAutoRotate({
+  onLockDetected,
+}: {
+  onLockDetected: () => void;
+}) {
+  const config = useCopilotChatConfiguration();
+  const { agent } = useAgent({ agentId: config?.agentId });
+
+  useEffect(() => {
+    const sub = agent.subscribe({
+      onEvent: ({ event }) => {
+        const e = event as Record<string, unknown>;
+        if (e.type !== "RUN_ERROR") return;
+        const msg = String(e.message ?? "");
+        if (/locked/i.test(msg)) {
+          console.warn(
+            "[ThreadAutoRotate] thread lock detected — rotating to a fresh threadId so the next click recovers",
+          );
+          onLockDetected();
+        }
+      },
+    });
+    return () => sub.unsubscribe();
+  }, [agent, onLockDetected]);
+
+  return null;
+}
+
 function HomePage() {
   const [threadId, setThreadId] = useState<string | undefined>(undefined);
   const [agentId, setAgentId] = useState<AgentId>("langgraph");
+
+  // Called by ThreadAutoRotate when a locked-thread RUN_ERROR comes in.
+  // Generating a fresh UUID (vs. setting undefined) guarantees CopilotChat's
+  // internal "remember last threadId" caching can't drift us back onto the
+  // stuck thread.
+  const handleLockDetected = useCallback(() => {
+    setThreadId(crypto.randomUUID());
+  }, []);
 
   return (
     <ThemeShell>
@@ -121,18 +169,29 @@ function HomePage() {
             agentId={agentId}
             threadId={threadId}
           >
+            <ThreadAutoRotate onLockDetected={handleLockDetected} />
             <ExampleLayout
               chatHeader={
                 <AgentSelector
                   agentId={agentId}
                   onChange={(id) => {
                     setAgentId(id);
-                    setThreadId(undefined);
+                    // Force a brand-new thread on agent swap. We used to
+                    // pass `undefined` and let the runtime pick, but that
+                    // could let CopilotChat's internal cache carry the
+                    // previous agent's threadId forward, causing
+                    // setState/run attempts on the new agent to land on the
+                    // OLD thread (and trip Redis lock errors). An explicit
+                    // UUID guarantees a clean break.
+                    setThreadId(crypto.randomUUID());
                   }}
                 />
               }
               chatContent={<ChatWired />}
-              appContent={<PmBoard />}
+              // Agent picker drives the right pane. langgraph (Cowork) shows
+              // the kanban board; adk (Dashboard Designer) swaps to the stats
+              // dashboard that the ADK agent drives via updateDashboard.
+              appContent={agentId === "adk" ? <Dashboard /> : <PmBoard />}
             />
             <EventInspector />
           </CopilotChatConfigurationProvider>
