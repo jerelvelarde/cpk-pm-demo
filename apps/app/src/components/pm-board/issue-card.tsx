@@ -122,7 +122,8 @@ export function IssueCard({ issue, onUpdate, onDelete }: IssueCardProps) {
         </button>
         {showMenu === "priority" && (
           <div
-            className="absolute z-30 mt-1 top-7 left-12 rounded bg-white border border-[#dbdbe5] shadow-md p-1 flex flex-col gap-0.5 min-w-[110px]"
+            className="absolute z-30 mt-1 top-7 left-12 rounded bg-white border border-[#dbdbe5] p-1 flex flex-col gap-0.5 min-w-[110px]"
+            style={{ boxShadow: "0px 6px 6px -2px rgba(1, 5, 7, 0.08)" }}
             onClick={(e) => e.stopPropagation()}
           >
             {ISSUE_PRIORITIES.map((p) => (
@@ -220,7 +221,8 @@ export function IssueCard({ issue, onUpdate, onDelete }: IssueCardProps) {
 
       {showMenu === "status" && (
         <div
-          className="absolute z-30 right-2 top-8 rounded bg-white border border-[#dbdbe5] shadow-md p-1 flex flex-col gap-0.5 min-w-[140px]"
+          className="absolute z-30 right-2 top-8 rounded bg-white border border-[#dbdbe5] p-1 flex flex-col gap-0.5 min-w-[140px]"
+          style={{ boxShadow: "0px 6px 6px -2px rgba(1, 5, 7, 0.08)" }}
           onClick={(e) => e.stopPropagation()}
         >
           {ISSUE_STATUSES.map((s) => (

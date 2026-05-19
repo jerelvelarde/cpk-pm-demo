@@ -10,7 +10,7 @@ interface ExampleLayoutProps {
 }
 
 export function ExampleLayout({ chatContent, appContent }: ExampleLayoutProps) {
-  const [mode, setMode] = useState<"chat" | "app">("chat");
+  const [mode, setMode] = useState<"chat" | "app">("app");
 
   useFrontendTool({
     name: "enableAppMode",
@@ -30,42 +30,67 @@ export function ExampleLayout({ chatContent, appContent }: ExampleLayoutProps) {
   });
 
   return (
-    <div className="h-full flex flex-row">
+    <div
+      className="h-full flex flex-row"
+      style={{ height: "calc(100dvh - 16px)" }}
+    >
       <ModeToggle mode={mode} onModeChange={setMode} />
 
-      {/* Chat Content */}
+      {/* Chat panel — glass card */}
       <div
         className={`max-h-full flex flex-col ${
-          mode === "app"
-            ? "w-1/3 max-lg:hidden" // Hide on mobile in app mode
-            : "flex-1"
+          mode === "app" ? "w-[420px] max-lg:hidden" : "flex-1"
         }`}
+        style={{
+          background: "rgba(255, 255, 255, 0.5)",
+          border: "2px solid #ffffff",
+          borderRadius: 8,
+          marginRight: 8,
+          overflow: "hidden",
+          backdropFilter: "blur(8px)",
+          WebkitBackdropFilter: "blur(8px)",
+        }}
       >
-        <div className="shrink-0 pt-6 pl-6 pb-2 max-lg:pl-4 max-lg:pt-4">
+        <div className="shrink-0 pt-5 pl-5 pb-2 max-lg:pl-4 max-lg:pt-4 flex items-center gap-2">
           <img
             src="/copilotkit-logo.svg"
             alt="CopilotKit"
-            className="h-7 dark:invert"
+            className="h-6"
           />
+          <span
+            style={{
+              fontSize: 18,
+              fontWeight: 300,
+              color: "var(--text-primary)",
+              marginLeft: 4,
+            }}
+          >
+            PM Copilot
+          </span>
         </div>
         <div
           className={`flex-1 min-h-0 overflow-y-auto ${
-            mode === "app" ? "px-6" : "max-lg:px-4"
+            mode === "app" ? "px-4" : "max-lg:px-4"
           }`}
         >
           {chatContent}
         </div>
       </div>
 
-      {/* State Panel */}
+      {/* Board panel */}
       <div
-        className={`h-full overflow-hidden ${
-          mode === "app"
-            ? "w-2/3 max-lg:w-full border-l border-[var(--border)] max-lg:border-l-0" // Full width on mobile
-            : "w-0 border-l-0"
+        className={`h-full overflow-hidden flex-1 ${
+          mode === "app" ? "max-lg:w-full" : "w-0"
         }`}
+        style={{
+          background: "rgba(255, 255, 255, 0.4)",
+          border: mode === "app" ? "2px solid #ffffff" : "0",
+          borderRadius: 8,
+          backdropFilter: "blur(8px)",
+          WebkitBackdropFilter: "blur(8px)",
+        }}
       >
-        <div className="w-full lg:w-[66.666vw] h-full">{appContent}</div>
+        <div className="w-full h-full">{appContent}</div>
       </div>
     </div>
   );

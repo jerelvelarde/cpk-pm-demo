@@ -67,7 +67,8 @@ export const useGenerativeUIExamples = () => {
   useFrontendTool(
     {
       name: "toggleTheme",
-      description: "Frontend tool for toggling the theme of the app.",
+      description:
+        "Frontend tool for toggling between the two CopilotKit glass-density variants (light / frosted).",
       parameters: z.object({}),
       handler: async () => {
         const isDark = document.documentElement.classList.contains("dark");

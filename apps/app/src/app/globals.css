@@ -1,47 +1,77 @@
-/* CopilotKit brand fonts */
-@import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300..800&family=Spline+Sans+Mono:wght@400;500;600&display=swap");
+/* CopilotKit UI theme — design tokens copied verbatim from
+ * /Users/jerel-cpk/.claude/skills/copilotkit-ui-theme/references/design-tokens.md
+ * Fonts are loaded via <link> in apps/app/index.html (Tailwind v4 rejects
+ * @import url() of Google Fonts).
+ */
 
 @import "tailwindcss";
 
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  --background: #ffffff;
-  --foreground: #010507;
+  /* CopilotKit surface palette (LIGHT / lavender) */
+  --surface-main: #dedee9;
+  --surface-background: #dbdbe5;
+  --surface-container: #ffffff;
+  --surface-container-hovered: #fafcfa;
 
-  /* Semantic tokens — CopilotKit brand */
-  --card: #ffffff;
-  --card-foreground: #010507;
-  --primary: #010507;
-  --primary-foreground: #ffffff;
-  --secondary: #ededf5;
-  --secondary-foreground: #010507;
-  --muted: #ededf5;
-  --muted-foreground: #57575b;
+  --border-default: #ffffff;
+  --border-container: #dbdbe5;
+
+  --text-primary: #010507;
+  --text-secondary: #57575b;
+  --text-disabled: #838389;
+  --text-invert: #ffffff;
+
+  --white-50: rgba(255, 255, 255, 0.5);
+  --white-65: rgba(255, 255, 255, 0.65);
+  --white-70: rgba(255, 255, 255, 0.7);
+
+  /* Legacy variable names — keep so existing shadcn-style components keep
+   * working. They now point at the CopilotKit values. */
+  --background: var(--surface-main);
+  --foreground: var(--text-primary);
+  --card: var(--surface-container);
+  --card-foreground: var(--text-primary);
+  --primary: var(--text-primary);
+  --primary-foreground: var(--text-invert);
+  --secondary: var(--white-50);
+  --secondary-foreground: var(--text-primary);
+  --muted: var(--white-50);
+  --muted-foreground: var(--text-secondary);
   --accent: #eee6fe;
-  --accent-foreground: #010507;
+  --accent-foreground: var(--text-primary);
   --destructive: #fa5f67;
   --destructive-foreground: #ffffff;
-  --border: #dbdbe5;
-  --input: #dbdbe5;
+  --border: var(--border-container);
+  --input: var(--border-container);
   --ring: #bec2ff;
 
-  /* Chart tokens */
+  /* Charts */
   --chart-tooltip-bg: #ffffff;
-  --chart-tooltip-border: #dbdbe5;
-  --chart-axis: #57575b;
+  --chart-tooltip-border: var(--border-container);
+  --chart-axis: var(--text-secondary);
 
-  --radius: 0.75rem;
+  /* Radius — CopilotKit token scale */
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-full: 9999px;
+  --radius: var(--radius-sm);
 
-  /* Override CopilotKit font */
+  /* Override CopilotKit chat font */
   --cpk-default-font-family: var(--font-body);
 
   /* Fonts */
-  --font-body: "Plus Jakarta Sans", "DM Sans", "Segoe UI", sans-serif;
+  --font-body:
+    "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system,
+    BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-code:
-    "Spline Sans Mono", "SFMono-Regular", Menlo, Monaco, Consolas, monospace;
+    "Spline Sans Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    monospace;
 
-  /* Brand accent colors */
+  /* Brand accent colors (kept for chart palette etc.) */
   --cpk-mint-400: #85ecce;
   --cpk-mint-800: #189370;
   --cpk-lilac-400: #bec2ff;
@@ -53,38 +83,38 @@
     #85ecce 45.673%,
     #ffac4d 100%
   );
+
+  /* Elevation */
+  --elevation-sm: 0px 1px 3px 0px rgba(1, 5, 7, 0.08);
+  --elevation-md: 0px 6px 6px -2px rgba(1, 5, 7, 0.08);
+  --elevation-lg: 0px 16px 24px -8px rgba(1, 5, 7, 0.12);
+  --elevation-xl: 0px 24px 32px -12px rgba(1, 5, 7, 0.16);
 }
 
+/* "Frosted" mode — invoked by the toggleTheme frontend tool. Same lavender
+ * background, denser glass: lower translucency, less white border, used as a
+ * visual variant rather than light/dark. */
 :root.dark,
 .dark {
-  --background: #010507;
-  --foreground: #ffffff;
+  --surface-main: #c9c9da;
+  --surface-background: #b8b8c8;
+  --surface-container: rgba(255, 255, 255, 0.55);
+  --white-50: rgba(255, 255, 255, 0.35);
+  --white-65: rgba(255, 255, 255, 0.5);
+  --white-70: rgba(255, 255, 255, 0.6);
+  --border-default: rgba(255, 255, 255, 0.7);
+}
 
-  --card: #191a1e;
-  --card-foreground: #ffffff;
-  --primary: #ffffff;
-  --primary-foreground: #010507;
-  --secondary: #242529;
-  --secondary-foreground: #ffffff;
-  --muted: #242529;
-  --muted-foreground: #adadb2;
-  --accent: #303136;
-  --accent-foreground: #ffffff;
-  --destructive: #fa5f67;
-  --destructive-foreground: #ffffff;
-  --border: #303136;
-  --input: #303136;
-  --ring: #bec2ff;
-
-  --chart-tooltip-bg: #191a1e;
-  --chart-tooltip-border: #303136;
-  --chart-axis: #adadb2;
+* {
+  box-sizing: border-box;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
+  margin: 0;
+  background: var(--surface-main);
+  color: var(--text-primary);
   font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
 }
 
 body,
