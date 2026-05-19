@@ -4,7 +4,7 @@
   "fixtures": [
     {
       "match": {
-        "userMessage": "show me everything Sarah",
+        "userMessage": "Show me everything Sarah",
         "systemMessage": "Dashboard Designer",
         "hasToolResult": false
       },
@@ -29,7 +29,7 @@
     },
     {
       "match": {
-        "userMessage": "filter the dashboard to just the urgent",
+        "userMessage": "Filter the dashboard to just the urgent",
         "systemMessage": "Dashboard Designer",
         "hasToolResult": false
       },
@@ -54,7 +54,7 @@
     },
     {
       "match": {
-        "userMessage": "break down the dashboard by assignee",
+        "userMessage": "Break down the dashboard by assignee",
         "systemMessage": "Dashboard Designer",
         "hasToolResult": false
       },
@@ -79,7 +79,7 @@
     },
     {
       "match": {
-        "userMessage": "show me everything currently in progress",
+        "userMessage": "Show me everything currently in progress",
         "systemMessage": "Dashboard Designer",
         "hasToolResult": false
       },
@@ -104,7 +104,7 @@
     },
     {
       "match": {
-        "userMessage": "reset the filter",
+        "userMessage": "Reset the filter",
         "systemMessage": "Dashboard Designer",
         "hasToolResult": false
       },
