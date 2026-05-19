@@ -152,30 +152,39 @@ html {
   backdrop-filter: blur(6px);
 }
 
-/* Auto-hide scrollbar on the chat panel's scroll container.
- * Thumb fades in while the user is scrolling and fades back out 1s after
- * the last scroll event (the .is-scrolling class is toggled in
- * ExampleLayout via a debounced scroll listener). */
-.chat-scroll {
+/* Auto-hide scrollbars on every scrollable element inside the chat panel
+ * — both our outer wrapper and CopilotChat's internal message-list scroll
+ * container. The `.is-scrolling` class is added to whichever element fired
+ * the scroll event (capture-phase listener in ExampleLayout) and removed
+ * 1s later. Firefox uses `scrollbar-color`; WebKit uses the pseudo. */
+.chat-panel *,
+.chat-panel {
   scrollbar-width: thin;
   scrollbar-color: transparent transparent;
   transition: scrollbar-color 200ms ease;
 }
-.chat-scroll.is-scrolling {
+.chat-panel .is-scrolling,
+.chat-panel.is-scrolling {
   scrollbar-color: rgba(0, 0, 0, 0.25) transparent;
 }
-.chat-scroll::-webkit-scrollbar {
+.chat-panel *::-webkit-scrollbar,
+.chat-panel::-webkit-scrollbar {
   width: 8px;
-}
-.chat-scroll::-webkit-scrollbar-track {
+  height: 8px;
   background: transparent;
 }
-.chat-scroll::-webkit-scrollbar-thumb {
+.chat-panel *::-webkit-scrollbar-track,
+.chat-panel::-webkit-scrollbar-track {
+  background: transparent;
+}
+.chat-panel *::-webkit-scrollbar-thumb,
+.chat-panel::-webkit-scrollbar-thumb {
   background-color: transparent;
   border-radius: 4px;
   transition: background-color 200ms ease;
 }
-.chat-scroll.is-scrolling::-webkit-scrollbar-thumb {
+.chat-panel .is-scrolling::-webkit-scrollbar-thumb,
+.chat-panel.is-scrolling::-webkit-scrollbar-thumb {
   background-color: rgba(0, 0, 0, 0.25);
 }
 

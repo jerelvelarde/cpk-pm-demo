@@ -42,21 +42,35 @@ export function ExampleLayout({
   // with the new cycle even when the user was already in app mode.
   const [appModeNonce, setAppModeNonce] = useState(0);
 
-  // Auto-hide the chat-panel scrollbar 1s after the last scroll event.
-  const chatScrollRef = useRef<HTMLDivElement>(null);
+  // Auto-hide scrollbars inside the chat panel 1s after the last scroll
+  // event. CopilotChat creates its own internal scroll container for the
+  // message list, so we listen in capture phase on the panel and tag the
+  // actual scrolling target — `scroll` events don't bubble, but they do
+  // reach capture-phase listeners on ancestors.
+  const chatPanelRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    const el = chatScrollRef.current;
-    if (!el) return;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const onScroll = () => {
-      el.classList.add("is-scrolling");
-      if (timer) clearTimeout(timer);
-      timer = setTimeout(() => el.classList.remove("is-scrolling"), 1000);
+    const panel = chatPanelRef.current;
+    if (!panel) return;
+    const timers = new WeakMap<Element, ReturnType<typeof setTimeout>>();
+    const onScroll = (e: Event) => {
+      const target = e.target as Element | null;
+      if (!target || !("classList" in target)) return;
+      target.classList.add("is-scrolling");
+      const prev = timers.get(target);
+      if (prev) clearTimeout(prev);
+      timers.set(
+        target,
+        setTimeout(() => target.classList.remove("is-scrolling"), 1000),
+      );
     };
-    el.addEventListener("scroll", onScroll, { passive: true });
+    panel.addEventListener("scroll", onScroll, {
+      passive: true,
+      capture: true,
+    });
     return () => {
-      el.removeEventListener("scroll", onScroll);
-      if (timer) clearTimeout(timer);
+      panel.removeEventListener("scroll", onScroll, {
+        capture: true,
+      } as EventListenerOptions);
     };
   }, []);
 
@@ -95,7 +109,8 @@ export function ExampleLayout({
 
       {/* Chat panel — glass card */}
       <div
-        className={`max-h-full flex flex-col ${
+        ref={chatPanelRef}
+        className={`chat-panel max-h-full flex flex-col ${
           mode === "app" ? "w-[420px] max-lg:hidden" : "flex-1"
         }`}
         style={{
@@ -128,10 +143,7 @@ export function ExampleLayout({
           </div>
           {chatHeader}
         </div>
-        <div
-          ref={chatScrollRef}
-          className="chat-scroll flex-1 min-h-0 overflow-y-auto px-4 pb-4"
-        >
+        <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-4">
           {chatContent}
         </div>
       </div>
