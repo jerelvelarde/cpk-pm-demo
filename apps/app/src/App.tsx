@@ -43,6 +43,13 @@ function HomePage() {
             chatContent={
               <CopilotChat
                 input={{ disclaimer: () => null, className: "pb-6" }}
+                attachments={{
+                  enabled: true,
+                  accept: "image/*,application/pdf",
+                  maxSize: 10 * 1024 * 1024,
+                  onUploadFailed: (err) =>
+                    console.warn("[attachments]", err.reason, err.message),
+                }}
               />
             }
             appContent={<ExampleCanvas />}

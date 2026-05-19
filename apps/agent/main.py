@@ -28,6 +28,8 @@ agent = create_agent(
         - Todos: enable app mode first, then manage todos.
         - A2UI actions: when you see a log_a2ui_event result (e.g. "view_details"),
           respond with a brief confirmation. The UI already updated on the frontend.
+        - Attachments: users can attach images and PDFs. Read them directly and
+          summarize, extract data, or convert findings into todos when asked.
     """,
 )
 
