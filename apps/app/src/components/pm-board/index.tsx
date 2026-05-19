@@ -1,12 +1,20 @@
 "use client";
 
-import { useAgent } from "@copilotkit/react-core/v2";
+import {
+  useAgent,
+  useCopilotChatConfiguration,
+} from "@copilotkit/react-core/v2";
 import { IssueBoard } from "./issue-board";
 import { Issue } from "./types";
 import { AnalysisTimeline } from "./analysis-timeline";
 
 export function PmBoard() {
-  const { agent } = useAgent();
+  // useAgent() only falls back its threadId to the enclosing chat config —
+  // agentId still defaults to DEFAULT_AGENT_ID. Without passing it explicitly,
+  // the board resolves to a different agent clone than the chat and never
+  // sees the issues the chat agent is mutating.
+  const config = useCopilotChatConfiguration();
+  const { agent } = useAgent({ agentId: config?.agentId });
   const issues = agent.state?.issues as Issue[] | undefined;
 
   return (

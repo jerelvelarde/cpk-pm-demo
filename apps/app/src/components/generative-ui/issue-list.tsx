@@ -1,7 +1,10 @@
 "use client";
 
 import { z } from "zod";
-import { useAgent } from "@copilotkit/react-core/v2";
+import {
+  useAgent,
+  useCopilotChatConfiguration,
+} from "@copilotkit/react-core/v2";
 import { IssueCardChip, IssueCardProps } from "./issue-card";
 import { Issue } from "@/components/pm-board/types";
 
@@ -30,7 +33,8 @@ export const IssueListProps = z.object({
 export type IssueListArgs = z.infer<typeof IssueListProps>;
 
 export function IssueList({ issueIds, issues, caption }: IssueListArgs) {
-  const { agent } = useAgent();
+  const config = useCopilotChatConfiguration();
+  const { agent } = useAgent({ agentId: config?.agentId });
   const stateIssues = (agent.state?.issues as Issue[] | undefined) ?? [];
 
   let resolved: Issue[] = [];

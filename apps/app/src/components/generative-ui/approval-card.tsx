@@ -2,7 +2,10 @@
 
 import { useState } from "react";
 import { Check, Pencil, X } from "lucide-react";
-import { useAgent } from "@copilotkit/react-core/v2";
+import {
+  useAgent,
+  useCopilotChatConfiguration,
+} from "@copilotkit/react-core/v2";
 import {
   ASSIGNEE_COLORS,
   Issue,
@@ -38,7 +41,8 @@ export function ApprovalCard({
   issueId,
   changes = {},
 }: ApprovalCardProps) {
-  const { agent } = useAgent();
+  const config = useCopilotChatConfiguration();
+  const { agent } = useAgent({ agentId: config?.agentId });
   const issues = (agent.state?.issues as Issue[] | undefined) ?? [];
   const issue = issueId ? issues.find((i) => i.id === issueId) : undefined;
 

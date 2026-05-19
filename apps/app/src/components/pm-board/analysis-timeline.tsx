@@ -1,7 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useAgent } from "@copilotkit/react-core/v2";
+import {
+  useAgent,
+  useCopilotChatConfiguration,
+} from "@copilotkit/react-core/v2";
 import { Check, Loader2, X } from "lucide-react";
 import { SectionTitle } from "./section-title";
 
@@ -31,7 +34,8 @@ const KNOWN_STEPS = [
  * active step with a small slide-in animation.
  */
 export function AnalysisTimeline() {
-  const { agent } = useAgent();
+  const config = useCopilotChatConfiguration();
+  const { agent } = useAgent({ agentId: config?.agentId });
   const analysis = (agent.state as { analysis?: AnalysisState } | undefined)
     ?.analysis;
 

@@ -1,7 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useAgent } from "@copilotkit/react-core/v2";
+import {
+  useAgent,
+  useCopilotChatConfiguration,
+} from "@copilotkit/react-core/v2";
 import { ChevronRight, X } from "lucide-react";
 
 interface InspectorEvent {
@@ -21,7 +24,8 @@ const MAX_EVENTS = 200;
  * which agent runtime is on the other end.
  */
 export function EventInspector() {
-  const { agent } = useAgent();
+  const config = useCopilotChatConfiguration();
+  const { agent } = useAgent({ agentId: config?.agentId });
   const [events, setEvents] = useState<InspectorEvent[]>([]);
   const [open, setOpen] = useState(false);
   const idRef = useRef(0);
