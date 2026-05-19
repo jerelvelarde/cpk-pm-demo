@@ -11,15 +11,22 @@ import {
   Search,
   Trash2,
 } from "lucide-react";
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useThreads } from "@copilotkit/react-core/v2";
+import { type AgentId } from "@/components/agent-selector";
 import styles from "./threads-drawer.module.css";
 
 export interface ThreadsDrawerProps {
-  agentId: string;
   threadId: string | undefined;
-  onThreadChange: (threadId: string | undefined) => void;
+  /**
+   * Fires when the user picks a thread (or clears the selection). Receives
+   * the thread's owning `agentId` so the parent can flip the active agent
+   * to match — threads are partitioned per-agent on the Intelligence
+   * platform, so opening a thread that belongs to a different agent must
+   * also switch the agent.
+   */
+  onThreadChange: (threadId: string | undefined, agentId?: AgentId) => void;
   /**
    * Called when the user explicitly clicks one of the "New thread" buttons
    * (the collapsed-drawer "+" or the in-drawer header button). Distinct
@@ -33,11 +40,17 @@ export interface ThreadsDrawerProps {
 
 interface DrawerThread {
   id: string;
+  agentId: AgentId;
   name: string | null;
   updatedAt: string;
   archived: boolean;
   lastRunAt?: string;
 }
+
+const AGENT_LABELS: Record<AgentId, string> = {
+  langgraph: "Cowork",
+  adk: "Dashboard Designer",
+};
 
 const THREAD_ENTRY_ANIMATION_MS = 420;
 const TITLE_ANIMATION_MS = 360;
@@ -58,7 +71,6 @@ function cx(...classNames: Array<string | false | undefined>): string {
 }
 
 export default function ThreadsDrawer({
-  agentId,
   threadId,
   onThreadChange,
   onNewThread,
@@ -72,6 +84,7 @@ export default function ThreadsDrawer({
   const [isOpen, setIsOpen] = useState(true);
   const [pendingDelete, setPendingDelete] = useState<{
     id: string;
+    agentId: AgentId;
     title: string;
   } | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -79,30 +92,89 @@ export default function ThreadsDrawer({
   const [renameValue, setRenameValue] = useState("");
   const deleteTriggerRef = useRef<HTMLElement | null>(null);
 
-  const {
-    threads,
-    archiveThread,
-    deleteThread,
-    renameThread,
-    error,
-    isLoading,
-    hasMoreThreads,
-    isFetchingMoreThreads,
-    fetchMoreThreads,
-  } = useThreads({
-    agentId,
+  // Threads on the Intelligence platform are partitioned by (userId, agentId)
+  // and `useThreads` only queries one partition per call. To present a single
+  // unified thread list across both agents, we open one store per agent and
+  // merge them client-side; each row carries its `agentId` so mutations are
+  // routed back to the correct store.
+  const langgraphResult = useThreads({
+    agentId: "langgraph",
+    includeArchived: showArchived,
+    limit: 20,
+  });
+  const adkResult = useThreads({
+    agentId: "adk",
     includeArchived: showArchived,
     limit: 20,
   });
 
+  const threads = useMemo<DrawerThread[]>(() => {
+    const merged: DrawerThread[] = [
+      ...langgraphResult.threads.map((t) => ({
+        id: t.id,
+        agentId: "langgraph" as AgentId,
+        name: t.name,
+        archived: t.archived,
+        updatedAt: t.updatedAt,
+        ...(t.lastRunAt !== undefined ? { lastRunAt: t.lastRunAt } : {}),
+      })),
+      ...adkResult.threads.map((t) => ({
+        id: t.id,
+        agentId: "adk" as AgentId,
+        name: t.name,
+        archived: t.archived,
+        updatedAt: t.updatedAt,
+        ...(t.lastRunAt !== undefined ? { lastRunAt: t.lastRunAt } : {}),
+      })),
+    ];
+    merged.sort((a, b) => {
+      const aTs = new Date(a.lastRunAt ?? a.updatedAt).getTime();
+      const bTs = new Date(b.lastRunAt ?? b.updatedAt).getTime();
+      return bTs - aTs;
+    });
+    return merged;
+  }, [langgraphResult.threads, adkResult.threads]);
+
+  const resultFor = useCallback(
+    (id: AgentId) => (id === "adk" ? adkResult : langgraphResult),
+    [langgraphResult, adkResult],
+  );
+
+  const error = langgraphResult.error ?? adkResult.error;
+  const isLoading = langgraphResult.isLoading || adkResult.isLoading;
+  const hasMoreThreads =
+    langgraphResult.hasMoreThreads || adkResult.hasMoreThreads;
+  const isFetchingMoreThreads =
+    langgraphResult.isFetchingMoreThreads || adkResult.isFetchingMoreThreads;
+  const fetchMoreThreads = useCallback(() => {
+    if (langgraphResult.hasMoreThreads) langgraphResult.fetchMoreThreads();
+    if (adkResult.hasMoreThreads) adkResult.fetchMoreThreads();
+  }, [langgraphResult, adkResult]);
+
+  const renameThread = useCallback(
+    (id: string, agentForThread: AgentId, name: string) =>
+      resultFor(agentForThread).renameThread(id, name),
+    [resultFor],
+  );
+  const archiveThread = useCallback(
+    (id: string, agentForThread: AgentId) =>
+      resultFor(agentForThread).archiveThread(id),
+    [resultFor],
+  );
+  const deleteThread = useCallback(
+    (id: string, agentForThread: AgentId) =>
+      resultFor(agentForThread).deleteThread(id),
+    [resultFor],
+  );
+
   const restoreThread = useCallback(
-    async (id: string) => {
+    async (id: string, agentForThread: AgentId) => {
       const response = await fetch(
         `${RUNTIME_BASE_PATH}/threads/${encodeURIComponent(id)}`,
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ agentId, archived: false }),
+          body: JSON.stringify({ agentId: agentForThread, archived: false }),
         },
       );
       if (!response.ok) {
@@ -111,7 +183,7 @@ export default function ThreadsDrawer({
         );
       }
     },
-    [agentId],
+    [],
   );
 
   const hasMountedRef = useRef(false);
@@ -400,7 +472,7 @@ export default function ThreadsDrawer({
                           thread.archived && styles.threadItemArchived,
                         )}
                         type="button"
-                        onClick={() => onThreadChange(thread.id)}
+                        onClick={() => onThreadChange(thread.id, thread.agentId)}
                       >
                         <span aria-hidden className={styles.threadAccent} />
                         <span className={styles.threadBody}>
@@ -413,9 +485,12 @@ export default function ThreadsDrawer({
                               onBlur={() => {
                                 const trimmed = renameValue.trim();
                                 if (trimmed && trimmed !== title) {
-                                  renameThread(thread.id, trimmed).catch(
-                                    (err: unknown) =>
-                                      console.error("Rename failed", err),
+                                  renameThread(
+                                    thread.id,
+                                    thread.agentId,
+                                    trimmed,
+                                  ).catch((err: unknown) =>
+                                    console.error("Rename failed", err),
                                   );
                                 }
                                 setRenamingId(null);
@@ -451,6 +526,8 @@ export default function ThreadsDrawer({
                             </span>
                           )}
                           <span className={styles.threadMeta}>
+                            {AGENT_LABELS[thread.agentId]}
+                            {" · "}
                             {formatThreadTimestamp(
                               thread.lastRunAt ?? thread.updatedAt,
                             )}
@@ -485,9 +562,14 @@ export default function ThreadsDrawer({
                             data-tooltip="Restore thread"
                             type="button"
                             onClick={() => {
-                              restoreThread(thread.id).catch((err: unknown) => {
-                                console.error("Unable to restore thread", err);
-                              });
+                              restoreThread(thread.id, thread.agentId).catch(
+                                (err: unknown) => {
+                                  console.error(
+                                    "Unable to restore thread",
+                                    err,
+                                  );
+                                },
+                              );
                             }}
                           >
                             <ArchiveRestore size={14} />
@@ -505,9 +587,14 @@ export default function ThreadsDrawer({
                             onClick={() => {
                               if (threadId === thread.id)
                                 onThreadChange(undefined);
-                              archiveThread(thread.id).catch((err: unknown) => {
-                                console.error("Unable to archive thread", err);
-                              });
+                              archiveThread(thread.id, thread.agentId).catch(
+                                (err: unknown) => {
+                                  console.error(
+                                    "Unable to archive thread",
+                                    err,
+                                  );
+                                },
+                              );
                             }}
                           >
                             <Archive size={14} />
@@ -525,7 +612,11 @@ export default function ThreadsDrawer({
                           type="button"
                           onClick={(e) => {
                             deleteTriggerRef.current = e.currentTarget;
-                            setPendingDelete({ id: thread.id, title });
+                            setPendingDelete({
+                              id: thread.id,
+                              agentId: thread.agentId,
+                              title,
+                            });
                           }}
                         >
                           <Trash2 size={14} />
@@ -580,10 +671,10 @@ export default function ThreadsDrawer({
           title="Delete thread"
           onCancel={closeDeleteDialog}
           onConfirm={() => {
-            const { id } = pendingDelete;
+            const { id, agentId: agentForThread } = pendingDelete;
             closeDeleteDialog();
             if (threadId === id) onThreadChange(undefined);
-            deleteThread(id).catch((err: unknown) => {
+            deleteThread(id, agentForThread).catch((err: unknown) => {
               console.error("Unable to delete thread", err);
             });
           }}

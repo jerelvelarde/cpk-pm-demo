@@ -518,9 +518,16 @@ function HomePage() {
     <ThemeShell>
       <div className={styles.layout}>
         <ThreadsDrawer
-          agentId={agentId}
           threadId={threadId}
-          onThreadChange={setThreadId}
+          // Drawer merges threads from both agents into a single list.
+          // Picking a thread flips the active agent to whichever one
+          // owns that thread on the Intelligence platform — opening a
+          // thread under the "wrong" agent would create a duplicate
+          // partition entry, since threads are keyed by (userId, agentId).
+          onThreadChange={(nextThreadId, nextAgentId) => {
+            setThreadId(nextThreadId);
+            if (nextAgentId) setAgentId(nextAgentId);
+          }}
           onNewThread={handleNewThread}
         />
         <div className={styles.mainPanel}>
