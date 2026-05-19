@@ -17,10 +17,28 @@ import styles from "@/components/threads-drawer/threads-drawer.module.css";
 
 const runtimeUrl = "/api/copilotkit";
 
-function HomePage() {
+function ChatWired() {
+  // Inside CopilotChatConfigurationProvider so useConfigureSuggestions and
+  // useFrontendTool resolve against the active chat config's agentId. Hoisted
+  // up to HomePage caused suggestions to register before the chat config was
+  // available and the welcome-screen suggestion list rendered empty.
   useGenerativeUIExamples();
   useExampleSuggestions();
+  return (
+    <CopilotChat
+      input={{ disclaimer: () => null, className: "pb-6" }}
+      attachments={{
+        enabled: true,
+        accept: "image/*,application/pdf",
+        maxSize: 10 * 1024 * 1024,
+        onUploadFailed: (err) =>
+          console.warn("[attachments]", err.reason, err.message),
+      }}
+    />
+  );
+}
 
+function HomePage() {
   const [threadId, setThreadId] = useState<string | undefined>(undefined);
   const [agentId, setAgentId] = useState<AgentId>("langgraph");
 
@@ -53,18 +71,7 @@ function HomePage() {
                   }}
                 />
               }
-              chatContent={
-                <CopilotChat
-                  input={{ disclaimer: () => null, className: "pb-6" }}
-                  attachments={{
-                    enabled: true,
-                    accept: "image/*,application/pdf",
-                    maxSize: 10 * 1024 * 1024,
-                    onUploadFailed: (err) =>
-                      console.warn("[attachments]", err.reason, err.message),
-                  }}
-                />
-              }
+              chatContent={<ChatWired />}
               appContent={<PmBoard />}
             />
             <EventInspector />
