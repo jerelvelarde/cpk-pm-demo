@@ -133,8 +133,60 @@
 .filterBar {
   display: flex;
   align-items: center;
-  padding: 0.5rem 1rem;
-  border-bottom: 1px solid var(--border);
+  padding: 0.5rem 1rem 0.4rem;
+}
+
+.searchBar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  padding: 0 1rem 0.5rem;
+  border-bottom: 1px solid #dbdbe5;
+}
+
+.searchIcon {
+  position: absolute;
+  left: 1.5rem;
+  color: #838389;
+  pointer-events: none;
+}
+
+.searchInput {
+  flex: 1;
+  height: 32px;
+  padding: 0 8px 0 28px;
+  border: 1px solid #dbdbe5;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.65);
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--text-primary);
+  outline: none;
+  transition:
+    background 140ms ease,
+    border-color 140ms ease;
+}
+
+.searchInput::placeholder {
+  color: var(--text-disabled);
+}
+
+.searchInput:focus {
+  background: #ffffff;
+  border-color: var(--ring);
+}
+
+.renameInput {
+  width: 100%;
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+  background: #ffffff;
+  border: 1px solid var(--ring);
+  border-radius: 4px;
+  padding: 2px 6px;
+  outline: none;
 }
 
 .segmented {
@@ -228,7 +280,7 @@
 
 .threadRow:hover .threadItem,
 .threadRow:focus-within .threadItem {
-  padding-right: 3.5rem;
+  padding-right: 5.5rem;
 }
 
 .threadItemSelected {
