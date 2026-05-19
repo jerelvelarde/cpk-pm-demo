@@ -67,7 +67,7 @@ export function IssueList({ issueIds, issues, caption }: IssueListArgs) {
   }
 
   return (
-    <div className="flex flex-col gap-2 my-2">
+    <div className="gen-ui-enter flex flex-col gap-2 my-2">
       {caption && (
         <div
           style={{

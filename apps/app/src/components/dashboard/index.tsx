@@ -16,6 +16,7 @@ import {
 } from "@/components/pm-board/types";
 import type { DashboardFilter, DashboardState } from "./types";
 import { SEED_ISSUES } from "./seed-issues";
+import { PersonProfileView } from "./person-profile";
 import { AlertTriangle, Layers, RotateCcw, User, Users } from "lucide-react";
 
 const STATUS_COLOR: Record<IssueStatus, string> = {
@@ -67,6 +68,21 @@ export function Dashboard() {
   const hasFilter =
     !!filter.assignee || !!filter.priority || !!filter.status ||
     (Array.isArray(filter.labels) && filter.labels.length > 0);
+
+  // personProfile mode short-circuits the aggregate dashboard. The
+  // `key={dashboard.person}` on PersonProfileView re-mounts the component
+  // when the focused person changes so the stagger animation re-runs
+  // (a CSS-only animation only fires on mount).
+  if (dashboard.mode === "personProfile" && dashboard.person) {
+    return (
+      <PersonProfileView
+        key={dashboard.person}
+        person={dashboard.person}
+        issues={issues}
+        insight={dashboard.insight}
+      />
+    );
+  }
 
   return (
     <div

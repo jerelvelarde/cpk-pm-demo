@@ -20,6 +20,15 @@ export interface ThreadsDrawerProps {
   agentId: string;
   threadId: string | undefined;
   onThreadChange: (threadId: string | undefined) => void;
+  /**
+   * Called when the user explicitly clicks one of the "New thread" buttons
+   * (the collapsed-drawer "+" or the in-drawer header button). Distinct
+   * from `onThreadChange(undefined)` — which is also used by the delete
+   * flow to drop the active selection — so the parent can do additional
+   * work on a true new-conversation event (e.g. minting a fresh threadId
+   * UUID, resetting layout mode to "chat").
+   */
+  onNewThread?: () => void;
 }
 
 interface DrawerThread {
@@ -52,7 +61,13 @@ export default function ThreadsDrawer({
   agentId,
   threadId,
   onThreadChange,
+  onNewThread,
 }: ThreadsDrawerProps) {
+  // Use `onNewThread` if the parent provided one (it does the full
+  // new-conversation reset). Fall back to the older onThreadChange(undefined)
+  // path for callers that haven't migrated yet.
+  const handleNewThread = () =>
+    onNewThread ? onNewThread() : onThreadChange(undefined);
   const [showArchived, setShowArchived] = useState(false);
   const [isOpen, setIsOpen] = useState(true);
   const [pendingDelete, setPendingDelete] = useState<{
@@ -240,7 +255,7 @@ export default function ThreadsDrawer({
             aria-label="Create thread"
             className={styles.iconButton}
             type="button"
-            onClick={() => onThreadChange(undefined)}
+            onClick={handleNewThread}
           >
             <Plus size={18} />
           </button>
@@ -280,7 +295,7 @@ export default function ThreadsDrawer({
                   aria-label="Create thread"
                   className={styles.newThreadButton}
                   type="button"
-                  onClick={() => onThreadChange(undefined)}
+                  onClick={handleNewThread}
                 >
                   <Plus size={14} />
                   <span>New thread</span>

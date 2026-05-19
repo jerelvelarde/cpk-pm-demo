@@ -1,28 +1,78 @@
 "use client";
 
-import { ReactNode, useState } from "react";
+import { ReactNode, useEffect, useRef, useState } from "react";
 import { ModeToggle } from "./mode-toggle";
 import { useFrontendTool } from "@copilotkit/react-core/v2";
 import { z } from "zod";
+
+export type ExampleLayoutMode = "chat" | "app";
 
 interface ExampleLayoutProps {
   chatContent: ReactNode;
   appContent: ReactNode;
   chatHeader?: ReactNode;
+  /**
+   * Controlled mode. When provided, `mode` lives in the parent (HomePage)
+   * so external actions — e.g. clicking "New thread" — can flip the layout
+   * back to chat-only. Falls back to internal state for callers that
+   * don't care.
+   */
+  mode?: ExampleLayoutMode;
+  onModeChange?: (mode: ExampleLayoutMode) => void;
 }
 
 export function ExampleLayout({
   chatContent,
   appContent,
   chatHeader,
+  mode: controlledMode,
+  onModeChange,
 }: ExampleLayoutProps) {
-  const [mode, setMode] = useState<"chat" | "app">("app");
+  const [uncontrolledMode, setUncontrolledMode] =
+    useState<ExampleLayoutMode>("app");
+  const mode = controlledMode ?? uncontrolledMode;
+  const setMode = (next: ExampleLayoutMode) => {
+    if (controlledMode === undefined) setUncontrolledMode(next);
+    onModeChange?.(next);
+  };
   // Nonce-keyed remount counter. Bumping this re-mounts the board panel
   // (and therefore IssueBoard), which resets IssueBoard's "seen ids" ref so
   // the staggered entrance animation plays for every card again. Used by
   // the sprint-planning demo to make the board feel like it's "opening"
   // with the new cycle even when the user was already in app mode.
   const [appModeNonce, setAppModeNonce] = useState(0);
+
+  // Auto-hide scrollbars inside the chat panel 1s after the last scroll
+  // event. CopilotChat creates its own internal scroll container for the
+  // message list, so we listen in capture phase on the panel and tag the
+  // actual scrolling target — `scroll` events don't bubble, but they do
+  // reach capture-phase listeners on ancestors.
+  const chatPanelRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const panel = chatPanelRef.current;
+    if (!panel) return;
+    const timers = new WeakMap<Element, ReturnType<typeof setTimeout>>();
+    const onScroll = (e: Event) => {
+      const target = e.target as Element | null;
+      if (!target || !("classList" in target)) return;
+      target.classList.add("is-scrolling");
+      const prev = timers.get(target);
+      if (prev) clearTimeout(prev);
+      timers.set(
+        target,
+        setTimeout(() => target.classList.remove("is-scrolling"), 1000),
+      );
+    };
+    panel.addEventListener("scroll", onScroll, {
+      passive: true,
+      capture: true,
+    });
+    return () => {
+      panel.removeEventListener("scroll", onScroll, {
+        capture: true,
+      } as EventListenerOptions);
+    };
+  }, []);
 
   // ExampleLayout previously imported useFrontendTool from
   // @copilotkit/react-core (v1) while the rest of the app uses v2. v1
@@ -59,7 +109,8 @@ export function ExampleLayout({
 
       {/* Chat panel — glass card */}
       <div
-        className={`max-h-full flex flex-col ${
+        ref={chatPanelRef}
+        className={`chat-panel max-h-full flex flex-col ${
           mode === "app" ? "w-[420px] max-lg:hidden" : "flex-1"
         }`}
         style={{

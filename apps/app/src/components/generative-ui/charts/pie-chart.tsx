@@ -94,7 +94,7 @@ function DonutChart({
 export function PieChart({ title, description, data }: PieChartProps) {
   if (!data || !Array.isArray(data) || data.length === 0) {
     return (
-      <Card className="max-w-lg mx-auto my-4">
+      <Card className="gen-ui-enter max-w-lg mx-auto my-4">
         <CardHeader>
           <CardTitle>{title}</CardTitle>
           <CardDescription>{description}</CardDescription>
@@ -111,7 +111,7 @@ export function PieChart({ title, description, data }: PieChartProps) {
   const total = data.reduce((sum, d) => sum + (Number(d.value) || 0), 0);
 
   return (
-    <Card className="max-w-lg mx-auto my-4 overflow-hidden">
+    <Card className="gen-ui-enter max-w-lg mx-auto my-4 overflow-hidden">
       <CardHeader className="pb-0">
         <CardTitle>{title}</CardTitle>
         <CardDescription>{description}</CardDescription>
