@@ -80,6 +80,11 @@ agent = create_agent(
           directly with issueIds=[...]. It renders the issues as glass cards
           with a "View on board" button. Call get_issues first if you don't
           already have the ids.
+        - Planning notes the user shares inline ("here's our sprint planning
+          notes", "use this meeting notes"): call the attachMeetingNotes
+          frontend tool first with filename, size, and the full content. It
+          animates an "attached file" card so the user can see what document
+          you're working from before you propose changes.
         - Deep analysis ("what should we cut?", "what's blocking ship?"): call
           analyze_backlog. It emits step-by-step progress that shows up in the
           shared-state timeline panel.

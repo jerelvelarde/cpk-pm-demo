@@ -1,23 +1,36 @@
 {
   "name": "sprint-planning",
-  "description": "Agent proposes a sprint based on the current backlog. Triggers propose_issue_change for each pick.",
+  "description": "Sprint planning demo. User pastes 'meeting notes' via the suggestion chip; the agent (a) renders an animated 'attached' file card for the notes via attachMeetingNotes, then (b) proposes the headline pull-in (ISS-113 GDPR) via propose_issue_change so the user can accept/edit/reject. Follow-up 'what else' adds the search-pagination fix.",
   "fixtures": [
     {
-      "match": { "userMessage": "Plan next sprint" },
+      "match": { "userMessage": "Plan the next sprint backlog" },
+      "chunkSize": 80,
       "response": {
         "toolCalls": [
           {
-            "name": "propose_issue_change",
-            "arguments": "{\"issue_id\":\"ISS-107\",\"changes\":{\"status\":\"Todo\"}}",
-            "id": "call_propose_iss107"
+            "id": "call_attach_notes_001",
+            "name": "attachMeetingNotes",
+            "arguments": "{\"filename\":\"Sprint Cycle 52 Meeting Notes.txt\",\"size\":\"1.1 KB\",\"content\":\"Sprint Cycle 52 — Sprint Planning\\nDate: May 19, 2026\\nAttendees: Alex, Sarah, Jordan, Priya\\n\\nCycle goal: ship the GDPR data-export endpoint and clear two backlog bugs.\\n\\nCarry-over (already in flight): ISS-101 (Alex), ISS-107 (Jordan), ISS-118 (Alex).\\n\\nPulling into Cycle 52:\\n1. ISS-113 GDPR data export — Sarah lead. Schema spike Mon-Tue, then endpoint.\\n2. ISS-111 Search pagination bug — Jordan. Half-day fix.\\n3. ISS-116 Sketch checkout redesign — Sarah. Unblocks broader redesign.\\n\\nOut of scope: ISS-119 (CI), ISS-112 (post-launch).\\n\\nStandup 10am PT. Demo Friday EOD.\"}"
           }
         ]
       }
     },
     {
-      "match": { "toolCallId": "call_propose_iss107" },
+      "match": { "toolCallId": "call_attach_notes_001" },
       "response": {
-        "content": "ISS-107 (Postgres connection pool exhaustion) is the most pressing infra issue — I'd pull it into the sprint first. The approval card is in the chat; accept or edit the proposal."
+        "toolCalls": [
+          {
+            "id": "call_propose_iss113",
+            "name": "propose_issue_change",
+            "arguments": "{\"issue_id\":\"ISS-113\",\"changes\":{\"status\":\"Todo\"}}"
+          }
+        ]
+      }
+    },
+    {
+      "match": { "toolCallId": "call_propose_iss113" },
+      "response": {
+        "content": "Read the notes. Pulling **ISS-113 (GDPR data export)** in as the Cycle 52 headline — Sarah lead, schema spike first. Approval card's in chat. Say 'what else should we pull in' and I'll layer in the search pagination fix and checkout sketch."
       }
     },
     {
@@ -25,11 +38,17 @@
       "response": {
         "toolCalls": [
           {
+            "id": "call_propose_iss111",
             "name": "propose_issue_change",
-            "arguments": "{\"issue_id\":\"ISS-118\",\"changes\":{\"status\":\"Todo\",\"priority\":\"Urgent\"}}",
-            "id": "call_propose_iss118"
+            "arguments": "{\"issue_id\":\"ISS-111\",\"changes\":{\"status\":\"Todo\"}}"
           }
         ]
+      }
+    },
+    {
+      "match": { "toolCallId": "call_propose_iss111" },
+      "response": {
+        "content": "Queued **ISS-111 (search pagination)** next — half-day fix per the notes. After this, ISS-116 (checkout sketch) and the stretch ISS-105 priority bump are still open. Want to chain them?"
       }
     }
   ]

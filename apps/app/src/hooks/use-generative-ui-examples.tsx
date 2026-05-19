@@ -25,6 +25,10 @@ import {
   IssueList,
   IssueListProps,
 } from "@/components/generative-ui/issue-list";
+import {
+  AttachMeetingNotes,
+  AttachMeetingNotesProps,
+} from "@/components/generative-ui/attach-meeting-notes";
 import { ApprovalCard } from "@/components/generative-ui/approval-card";
 import { ToolReasoning } from "@/components/tool-rendering";
 
@@ -110,6 +114,19 @@ export const useGenerativeUIExamples = () => {
       "Call this to surface a list of issues inline in chat as glass cards. Use it whenever the user asks to 'show', 'list', or 'see' specific issues. Pass issueIds with the ids you want to surface (e.g. all urgent issues, all unassigned issues, the ones you just edited) — the frontend looks them up in agent state. Call get_issues first if you don't already have the ids.",
     parameters: IssueListProps,
     render: IssueList,
+  });
+
+  // Sprint-planning attachment animation. Used only for the "plan next sprint"
+  // demo: renders an animated "attaching -> attached" file card for a fake
+  // Sprint Cycle 52 Meeting Notes.txt and expands to reveal the body. The
+  // tool is purely visual; call it when the user has handed you planning
+  // notes you should "read" before proposing issues.
+  useComponent({
+    name: "attachMeetingNotes",
+    description:
+      "Render an animated attached-file card for planning notes the user has shared (e.g. sprint planning notes). Use this immediately before proposing sprint issues so the user can see which document you are working from. Pass filename, size, and the full content as a string.",
+    parameters: AttachMeetingNotesProps,
+    render: AttachMeetingNotes,
   });
 
   // Default Tool Rendering (backend tool UI)

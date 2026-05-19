@@ -47,6 +47,10 @@ Tools:
 - issueList (frontend tool): call directly with issueIds=[...] to surface
   a set of issues inline in chat as glass cards. Use whenever the user
   asks to show / list / see specific issues.
+- attachMeetingNotes (frontend tool): call when the user shares planning
+  notes inline. Pass filename, size, and the full content as a string —
+  the frontend animates an "attached file" card so the user can see what
+  document you're working from before you propose changes.
 - analyze_backlog: open-ended analysis.
 """.strip()
 

@@ -6,7 +6,7 @@ export const useExampleSuggestions = () => {
       {
         title: "Plan next sprint",
         message:
-          "Look at the backlog and propose 3-4 high-priority issues to pull into next sprint. Walk me through each one so I can approve.",
+          "Plan the next sprint backlog using this meeting notes from our sprint planning.",
       },
       {
         title: "Analyze backlog",
