@@ -18,7 +18,7 @@ if os.environ.get("USE_MOCK") == "1":
 
 from fastapi import FastAPI
 
-from ag_ui_adk import ADKAgent, add_adk_fastapi_endpoint
+from ag_ui_adk import ADKAgent, AGUIToolset, add_adk_fastapi_endpoint
 from google.adk.agents import Agent as ADKBaseAgent
 from google.adk.models.lite_llm import LiteLlm
 
@@ -76,11 +76,18 @@ _inner_agent = ADKBaseAgent(
     name="pm_copilot_adk",
     model=_model,
     instruction=SYSTEM_PROMPT,
+    # AGUIToolset() is a placeholder — the ag_ui_adk bridge swaps it for a
+    # ClientProxyToolset at request time, registering whatever frontend
+    # tools the React app sent in this run (updateDashboard, toggleTheme,
+    # applyPlanningChanges, etc). Without it, ADK only sees the four
+    # backend Python tools and rejects every frontend-tool call as
+    # "hallucinated".
     tools=[
         get_issues,
         manage_issues,
         propose_issue_change,
         analyze_backlog,
+        AGUIToolset(),
     ],
 )
 
