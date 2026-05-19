@@ -45,18 +45,22 @@ const COWORK_SUGGESTIONS = [
  * the user would ask; the agent picks the right filter and focus copy from
  * the tool description (see useGenerativeUIExamples.tsx).
  */
+// Titles must match the keys in HARDCODED_DASHBOARD_RESPONSES (App.tsx);
+// the suggestion-click interceptor dispatches on title. Messages read like
+// natural user utterances per the suggestion-chip convention (see
+// feedback_suggestion_chips memory note).
 const DASHBOARD_SUGGESTIONS = [
   {
     title: "Sarah's workload",
-    message: "Show me everything Sarah is on the hook for.",
+    message: "Show me everything Sarah is working on.",
   },
   {
     title: "Urgent right now",
-    message: "Filter the dashboard to just the urgent issues.",
+    message: "What's the most urgent right now?",
   },
   {
     title: "Who has the most work?",
-    message: "Break down the dashboard by assignee — who's overloaded?",
+    message: "Who has the most work right now?",
   },
   {
     title: "What's in flight?",

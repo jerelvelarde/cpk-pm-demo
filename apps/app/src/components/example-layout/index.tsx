@@ -1,28 +1,64 @@
 "use client";
 
-import { ReactNode, useState } from "react";
+import { ReactNode, useEffect, useRef, useState } from "react";
 import { ModeToggle } from "./mode-toggle";
 import { useFrontendTool } from "@copilotkit/react-core/v2";
 import { z } from "zod";
+
+export type ExampleLayoutMode = "chat" | "app";
 
 interface ExampleLayoutProps {
   chatContent: ReactNode;
   appContent: ReactNode;
   chatHeader?: ReactNode;
+  /**
+   * Controlled mode. When provided, `mode` lives in the parent (HomePage)
+   * so external actions — e.g. clicking "New thread" — can flip the layout
+   * back to chat-only. Falls back to internal state for callers that
+   * don't care.
+   */
+  mode?: ExampleLayoutMode;
+  onModeChange?: (mode: ExampleLayoutMode) => void;
 }
 
 export function ExampleLayout({
   chatContent,
   appContent,
   chatHeader,
+  mode: controlledMode,
+  onModeChange,
 }: ExampleLayoutProps) {
-  const [mode, setMode] = useState<"chat" | "app">("app");
+  const [uncontrolledMode, setUncontrolledMode] =
+    useState<ExampleLayoutMode>("app");
+  const mode = controlledMode ?? uncontrolledMode;
+  const setMode = (next: ExampleLayoutMode) => {
+    if (controlledMode === undefined) setUncontrolledMode(next);
+    onModeChange?.(next);
+  };
   // Nonce-keyed remount counter. Bumping this re-mounts the board panel
   // (and therefore IssueBoard), which resets IssueBoard's "seen ids" ref so
   // the staggered entrance animation plays for every card again. Used by
   // the sprint-planning demo to make the board feel like it's "opening"
   // with the new cycle even when the user was already in app mode.
   const [appModeNonce, setAppModeNonce] = useState(0);
+
+  // Auto-hide the chat-panel scrollbar 1s after the last scroll event.
+  const chatScrollRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = chatScrollRef.current;
+    if (!el) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const onScroll = () => {
+      el.classList.add("is-scrolling");
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => el.classList.remove("is-scrolling"), 1000);
+    };
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      el.removeEventListener("scroll", onScroll);
+      if (timer) clearTimeout(timer);
+    };
+  }, []);
 
   // ExampleLayout previously imported useFrontendTool from
   // @copilotkit/react-core (v1) while the rest of the app uses v2. v1
@@ -92,7 +128,10 @@ export function ExampleLayout({
           </div>
           {chatHeader}
         </div>
-        <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-4">
+        <div
+          ref={chatScrollRef}
+          className="chat-scroll flex-1 min-h-0 overflow-y-auto px-4 pb-4"
+        >
           {chatContent}
         </div>
       </div>

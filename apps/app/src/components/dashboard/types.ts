@@ -18,10 +18,25 @@ export interface DashboardFilter {
 
 export type DashboardLayout = "overview" | "by_assignee" | "by_priority";
 
+/**
+ * Special render modes for the dashboard pane. `stats` (default) is the
+ * aggregate dashboard. `personProfile` is the hardcoded "Sarah's workload"
+ * demo response — a profile-style page focused on a single assignee with
+ * quick stats, an AI insight card, and the person's tickets, all entering
+ * with a stagger animation.
+ */
+export type DashboardMode = "stats" | "personProfile";
+
 export interface DashboardState {
   filter?: DashboardFilter;
   /** Short human-readable description shown in the dashboard header. */
   focus?: string;
   /** Which layout the dashboard is currently emphasizing. */
   layout?: DashboardLayout;
+  /** Optional render mode override. Defaults to "stats". */
+  mode?: DashboardMode;
+  /** When mode === "personProfile", which assignee to focus on. */
+  person?: string;
+  /** Optional AI insight blurb shown on the person profile. */
+  insight?: string;
 }

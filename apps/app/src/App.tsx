@@ -9,9 +9,12 @@ import {
   useCopilotChatConfiguration,
   useCopilotKit,
 } from "@copilotkit/react-core/v2";
-import { ExampleLayout } from "@/components/example-layout";
+import { ExampleLayout, type ExampleLayoutMode } from "@/components/example-layout";
 import { PmBoard } from "@/components/pm-board";
 import { Dashboard } from "@/components/dashboard";
+import { SEED_ISSUES } from "@/components/dashboard/seed-issues";
+import type { Issue } from "@/components/pm-board/types";
+import { ISSUE_STATUSES } from "@/components/pm-board/types";
 import { ThreadsDrawer } from "@/components/threads-drawer";
 import { ThemeShell } from "@/components/theme-shell";
 import { AgentSelector, type AgentId } from "@/components/agent-selector";
@@ -25,6 +28,132 @@ import styles from "@/components/threads-drawer/threads-drawer.module.css";
 /** Title of the suggestion chip that should auto-attach the sprint notes. */
 const PLAN_SPRINT_SUGGESTION_TITLE = "Plan next sprint";
 
+/**
+ * Hardcoded responses for the Dashboard Designer (ADK) demo chips. The
+ * normal flow goes user-message → agent → updateDashboard tool, but the
+ * demo plays the same every time only if we own the response entirely.
+ * Each entry decides what the suggestion-click handler does instead of
+ * running the agent:
+ *   - `dashboard` patches agent.state.dashboard directly (pass null to skip,
+ *     {} to clear, or an object to switch modes / set filters)
+ *   - `assistantContent` is the assistant bubble text shown above the tool
+ *   - `toolCall` (optional) is rendered inline by a registered useComponent;
+ *     a paired ToolMessage is added so the renderer transitions out of the
+ *     "executing" state into "complete"
+ *
+ * Matched by suggestion title — keep these in lockstep with the chip
+ * titles in `useExampleSuggestions`.
+ */
+/**
+ * `toolCall.arguments` can be either a static object or a function that
+ * receives the live issues array (after lazy-seeding) and returns the
+ * args. Use the function form when the inline component should reflect
+ * the current board state — e.g. the by-status bar chart re-computes
+ * counts from agent.state.issues so the chart matches whatever cards
+ * have been moved.
+ */
+type HardcodedToolCall = {
+  name: string;
+  arguments:
+    | Record<string, unknown>
+    | ((ctx: { issues: Issue[] }) => Record<string, unknown>);
+};
+
+type HardcodedDashboardResponse = {
+  dashboard?: Record<string, unknown>;
+  assistantContent: string;
+  toolCall?: HardcodedToolCall;
+};
+
+const SARAH_PROFILE_TITLE = "Sarah's workload";
+const URGENT_RIGHT_NOW_TITLE = "Urgent right now";
+const WHATS_IN_FLIGHT_TITLE = "What's in flight?";
+const WHO_HAS_MOST_TITLE = "Who has the most work?";
+const RESET_DASHBOARD_TITLE = "Reset the dashboard";
+const BAR_CHART_BY_STATUS_TITLE = "Bar chart by status";
+
+const HARDCODED_DASHBOARD_RESPONSES: Record<string, HardcodedDashboardResponse> =
+  {
+    [SARAH_PROFILE_TITLE]: {
+      // Switches the dashboard pane into the staggered-entrance person
+      // profile view (apps/app/src/components/dashboard/person-profile.tsx).
+      dashboard: {
+        mode: "personProfile",
+        person: "Sarah",
+        filter: { assignee: "Sarah" },
+        focus: "Showing everything Sarah is working on.",
+        insight:
+          "Sarah's load is front-weighted on planning (Q3 roadmap kickoff) and compliance (GDPR data export). Two design tickets are sitting in backlog with no due date — safe to defer if she needs to clear the planning queue first.",
+      },
+      assistantContent:
+        "Pulled up Sarah's full ticket profile in the dashboard — quick stats, an AI insight, and her open work in priority order.",
+    },
+    [URGENT_RIGHT_NOW_TITLE]: {
+      // `issueIds` resolves against agent.state.issues — the suggestion
+      // handler seeds SEED_ISSUES into agent state on the first ADK chip
+      // click, so the lookup matches the kanban's same mock-data source.
+      assistantContent:
+        "Here are the issues marked Urgent right now — both are payment / infra and have hard due dates this week.",
+      toolCall: {
+        name: "issueTable",
+        arguments: {
+          issueIds: ["ISS-101", "ISS-107"],
+          caption: "Urgent issues",
+        },
+      },
+    },
+    [WHATS_IN_FLIGHT_TITLE]: {
+      assistantContent:
+        "Four tickets are actively in progress right now — two urgent infra fixes plus a lodash migration and a Slack-notifications dedupe.",
+      toolCall: {
+        name: "issueTable",
+        arguments: {
+          issueIds: ["ISS-101", "ISS-107", "ISS-114", "ISS-118"],
+          caption: "In progress",
+        },
+      },
+    },
+    [WHO_HAS_MOST_TITLE]: {
+      assistantContent:
+        "Workload is fairly even — every assignee is carrying five open tickets. Watch Jordan and Alex; both have an Urgent infra item on top of their queue.",
+      toolCall: {
+        name: "barChart",
+        arguments: {
+          title: "Open issues by assignee",
+          description: "Tickets per person across the current backlog.",
+          data: [
+            { label: "Alex", value: 5 },
+            { label: "Jordan", value: 5 },
+            { label: "Sarah", value: 5 },
+            { label: "Priya", value: 5 },
+          ],
+        },
+      },
+    },
+    [RESET_DASHBOARD_TITLE]: {
+      dashboard: {},
+      assistantContent: "Cleared the filter — showing the full backlog again.",
+    },
+    // Cowork (LangGraph) kanban chip. Inline `barChart` generative UI
+    // component, with bar values computed at click-time from the live
+    // issues array so the chart reflects whatever cards have been moved.
+    [BAR_CHART_BY_STATUS_TITLE]: {
+      assistantContent:
+        "Here's the breakdown of open issues by status — In Progress and Backlog are carrying the most weight right now.",
+      toolCall: {
+        name: "barChart",
+        arguments: ({ issues }) => ({
+          title: "Issues by status",
+          description: "Open ticket count per workflow column.",
+          data: ISSUE_STATUSES.map((status) => ({
+            label: status,
+            value: issues.filter((i) => i.status === status).length,
+          })),
+        }),
+      },
+    },
+  };
+
 // Demo override: the BFF has no /transcribe endpoint, so the default voice
 // pipeline throws. We still want the mic button to record and animate, then
 // drop a canned utterance into the input box (without sending) so the demo
@@ -34,7 +163,15 @@ const MOCK_TRANSCRIPT =
 
 const runtimeUrl = "/api/copilotkit";
 
-function ChatWired() {
+interface ChatWiredProps {
+  // Lifted from HomePage so the AgentSelector can render below the input
+  // pill (via the disclaimer slot) instead of in the chat header — keeps
+  // it out of the way of the top-right ModeToggle in chat mode.
+  agentId: AgentId;
+  onAgentChange: (id: AgentId) => void;
+}
+
+function ChatWired({ agentId, onAgentChange }: ChatWiredProps) {
   // Inside CopilotChatConfigurationProvider so useConfigureSuggestions and
   // useFrontendTool resolve against the active chat config's agentId. Hoisted
   // up to HomePage caused suggestions to register before the chat config was
@@ -77,6 +214,94 @@ function ChatWired() {
     async (suggestion: { title?: string; message: string }) => {
       const messageId = crypto.randomUUID();
       const isPlanSprint = suggestion.title === PLAN_SPRINT_SUGGESTION_TITLE;
+
+      // Dashboard Designer (ADK) chips: short-circuit the agent and emit a
+      // hardcoded assistant message + (optional) inline tool component +
+      // direct dashboard state patch. Keeps the demo deterministic and lets
+      // us iterate UI/UX without touching the ADK backend.
+      const hardcoded =
+        suggestion.title && HARDCODED_DASHBOARD_RESPONSES[suggestion.title];
+      if (hardcoded) {
+        // User message first so the bubble shows what was asked.
+        agent.addMessage({
+          id: messageId,
+          role: "user",
+          content: suggestion.message,
+        });
+
+        // Lazy-seed agent.state.issues from SEED_ISSUES so inline
+        // generative-UI tools (issueTable / issueCard / personProfile)
+        // resolve the same mock dataset the kanban / dashboard render
+        // from. The ADK agent itself doesn't seed state.issues (see
+        // dashboard/index.tsx for why mount-time seeding races the
+        // thread switch), but a user-triggered chip click is past that
+        // race so it's safe here.
+        const currentIssues = (agent.state as { issues?: unknown })?.issues;
+        const needsSeed =
+          !Array.isArray(currentIssues) || currentIssues.length === 0;
+
+        // Patch dashboard state if the response wants to change the pane.
+        // Spread current state so we don't clobber `issues` (the kanban
+        // mirror) when we only mean to update the dashboard slice.
+        if (hardcoded.dashboard !== undefined || needsSeed) {
+          const current = (agent.state as Record<string, unknown>) ?? {};
+          const nextState: Record<string, unknown> = { ...current };
+          if (needsSeed) nextState.issues = SEED_ISSUES;
+          if (hardcoded.dashboard !== undefined) {
+            nextState.dashboard = hardcoded.dashboard;
+          }
+          agent.setState(nextState);
+        }
+
+        // Assistant bubble. If there's an inline tool, include the toolCall
+        // on the same assistant message so they render together; otherwise
+        // it's a plain text reply.
+        const assistantId = crypto.randomUUID();
+        if (hardcoded.toolCall) {
+          const toolCallId = crypto.randomUUID();
+          // Resolve `arguments` lazily so chart-style components can
+          // compute their data from the live (post-seed) issues array.
+          const liveIssues: Issue[] = needsSeed
+            ? SEED_ISSUES
+            : ((agent.state as { issues?: Issue[] })?.issues ?? SEED_ISSUES);
+          const resolvedArgs =
+            typeof hardcoded.toolCall.arguments === "function"
+              ? hardcoded.toolCall.arguments({ issues: liveIssues })
+              : hardcoded.toolCall.arguments;
+          agent.addMessage({
+            id: assistantId,
+            role: "assistant",
+            content: hardcoded.assistantContent,
+            toolCalls: [
+              {
+                id: toolCallId,
+                type: "function",
+                function: {
+                  name: hardcoded.toolCall.name,
+                  arguments: JSON.stringify(resolvedArgs),
+                },
+              },
+            ],
+          });
+          // Pair the toolCall with a ToolMessage so the inline renderer
+          // moves from "executing" → "complete" status. Without this, the
+          // useComponent render path treats the tool call as still running.
+          agent.addMessage({
+            id: crypto.randomUUID(),
+            role: "tool",
+            toolCallId,
+            content: "ok",
+          });
+        } else {
+          agent.addMessage({
+            id: assistantId,
+            role: "assistant",
+            content: hardcoded.assistantContent,
+          });
+        }
+        return;
+      }
+
       agent.addMessage({
         id: messageId,
         role: "user",
@@ -110,14 +335,24 @@ function ChatWired() {
       return (
         <CopilotChatInput
           {...slotProps}
-          disclaimer={() => null}
+          disclaimer={() => (
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "flex-end",
+                paddingTop: 6,
+              }}
+            >
+              <AgentSelector agentId={agentId} onChange={onAgentChange} />
+            </div>
+          )}
           className="pb-6"
           toolsMenu={toolsMenu}
           onFinishTranscribeWithAudio={handleFinishTranscribeWithAudio}
         />
       );
     },
-    [toolsMenu],
+    [toolsMenu, agentId, onAgentChange],
   );
 
   return (
@@ -181,6 +416,9 @@ function ThreadAutoRotate({
 function HomePage() {
   const [threadId, setThreadId] = useState<string | undefined>(undefined);
   const [agentId, setAgentId] = useState<AgentId>("langgraph");
+  // Lifted from ExampleLayout so the "New thread" button can flip the
+  // layout back to chat-only when starting a fresh conversation.
+  const [layoutMode, setLayoutMode] = useState<ExampleLayoutMode>("app");
 
   // Called by ThreadAutoRotate when a locked-thread RUN_ERROR comes in.
   // Generating a fresh UUID (vs. setting undefined) guarantees CopilotChat's
@@ -190,6 +428,15 @@ function HomePage() {
     setThreadId(crypto.randomUUID());
   }, []);
 
+  // True new-conversation action: mint a fresh threadId UUID (passing
+  // undefined isn't enough — CopilotChat's internal cache can carry the
+  // previous thread forward) AND collapse the right pane so the user
+  // lands on a clean chat-only welcome screen.
+  const handleNewThread = useCallback(() => {
+    setThreadId(crypto.randomUUID());
+    setLayoutMode("chat");
+  }, []);
+
   return (
     <ThemeShell>
       <div className={styles.layout}>
@@ -197,6 +444,7 @@ function HomePage() {
           agentId={agentId}
           threadId={threadId}
           onThreadChange={setThreadId}
+          onNewThread={handleNewThread}
         />
         <div className={styles.mainPanel}>
           {/*
@@ -211,23 +459,24 @@ function HomePage() {
           >
             <ThreadAutoRotate onLockDetected={handleLockDetected} />
             <ExampleLayout
-              chatHeader={
-                <AgentSelector
+              mode={layoutMode}
+              onModeChange={setLayoutMode}
+              chatContent={
+                <ChatWired
                   agentId={agentId}
-                  onChange={(id) => {
+                  // AgentSelector rendered below the chat input (via the
+                  // input's disclaimer slot) instead of the chat header so
+                  // it doesn't collide with the top-right ModeToggle in
+                  // chat mode. Same thread-rotation behavior on swap — an
+                  // explicit UUID guarantees CopilotChat's internal cache
+                  // can't carry the previous agent's threadId forward and
+                  // trip Redis lock errors on the new agent.
+                  onAgentChange={(id) => {
                     setAgentId(id);
-                    // Force a brand-new thread on agent swap. We used to
-                    // pass `undefined` and let the runtime pick, but that
-                    // could let CopilotChat's internal cache carry the
-                    // previous agent's threadId forward, causing
-                    // setState/run attempts on the new agent to land on the
-                    // OLD thread (and trip Redis lock errors). An explicit
-                    // UUID guarantees a clean break.
                     setThreadId(crypto.randomUUID());
                   }}
                 />
               }
-              chatContent={<ChatWired />}
               // Agent picker drives the right pane. langgraph (Cowork) shows
               // the kanban board; adk (Dashboard Designer) swaps to the stats
               // dashboard that the ADK agent drives via updateDashboard.

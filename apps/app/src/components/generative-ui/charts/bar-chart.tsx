@@ -69,7 +69,7 @@ export function BarChart({ title, description, data }: BarChartProps) {
 
   if (!data || !Array.isArray(data) || data.length === 0) {
     return (
-      <Card className="max-w-2xl mx-auto my-4">
+      <Card className="gen-ui-enter max-w-2xl mx-auto my-4">
         <CardHeader>
           <div className="flex items-center gap-2">
             <BarChart3 className="h-4 w-4 text-[var(--muted-foreground)]" />
@@ -87,7 +87,7 @@ export function BarChart({ title, description, data }: BarChartProps) {
   }
 
   return (
-    <Card className="max-w-2xl mx-auto my-4 overflow-hidden">
+    <Card className="gen-ui-enter max-w-2xl mx-auto my-4 overflow-hidden">
       {/* Scoped keyframe — no globals.css needed */}
       <style>{`
         @keyframes barSlideIn {
