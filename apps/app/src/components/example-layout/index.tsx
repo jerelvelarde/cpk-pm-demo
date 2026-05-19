@@ -2,7 +2,8 @@
 
 import { ReactNode, useState } from "react";
 import { ModeToggle } from "./mode-toggle";
-import { useFrontendTool } from "@copilotkit/react-core";
+import { useFrontendTool } from "@copilotkit/react-core/v2";
+import { z } from "zod";
 
 interface ExampleLayoutProps {
   chatContent: ReactNode;
@@ -16,19 +17,34 @@ export function ExampleLayout({
   chatHeader,
 }: ExampleLayoutProps) {
   const [mode, setMode] = useState<"chat" | "app">("app");
+  // Nonce-keyed remount counter. Bumping this re-mounts the board panel
+  // (and therefore IssueBoard), which resets IssueBoard's "seen ids" ref so
+  // the staggered entrance animation plays for every card again. Used by
+  // the sprint-planning demo to make the board feel like it's "opening"
+  // with the new cycle even when the user was already in app mode.
+  const [appModeNonce, setAppModeNonce] = useState(0);
 
+  // ExampleLayout previously imported useFrontendTool from
+  // @copilotkit/react-core (v1) while the rest of the app uses v2. v1
+  // registrations don't reach v2's per-agent tool registry, so fixture
+  // calls to enableAppMode were silently dropped in mock mode. Port both
+  // tools to v2 + give enableAppMode a nonce bump so it always re-triggers
+  // the board entrance animation, not just when transitioning chat -> app.
   useFrontendTool({
     name: "enableAppMode",
     description:
-      "Open the kanban board (app mode). Call this whenever the user wants to see, edit, or talk about issues.",
+      "Open the kanban board (app mode) and replay the staggered card entrance animation. Call this whenever the user wants to see, edit, or talk about issues, or to draw attention to a board change you just made.",
+    parameters: z.object({}),
     handler: async () => {
       setMode("app");
+      setAppModeNonce((n) => n + 1);
     },
   });
 
   useFrontendTool({
     name: "enableChatMode",
     description: "Close the kanban board and focus on chat.",
+    parameters: z.object({}),
     handler: async () => {
       setMode("chat");
     },
@@ -84,6 +100,7 @@ export function ExampleLayout({
       {/* Board panel */}
       {mode === "app" && (
         <div
+          key={appModeNonce}
           className="h-full overflow-hidden flex-1 max-lg:w-full"
           style={{
             background: "rgba(255, 255, 255, 0.4)",

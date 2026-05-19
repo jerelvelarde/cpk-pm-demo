@@ -84,6 +84,21 @@
         "systemMessage": "project-management copilot"
       },
       "response": {
+        "toolCalls": [
+          {
+            "id": "call_enable_app",
+            "name": "enableAppMode",
+            "arguments": "{}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "toolCallId": "call_enable_app",
+        "systemMessage": "project-management copilot"
+      },
+      "response": {
         "content": "Done. Cycle 52 is loaded: **ISS-101** (Safari payment) marked Done, **ISS-111** (search pagination) pulled to Todo with Jordan, and **ISS-113** (GDPR data export) pulled to Todo with Sarah as the cycle headline. Carry-overs ISS-107 and ISS-118 stay in flight; everything else parked per the notes. Standup 10am PT, demo Friday."
       }
     }
