@@ -17,6 +17,14 @@ import {
   BarChartProps,
 } from "@/components/generative-ui/charts/bar-chart";
 import { MeetingTimePicker } from "@/components/generative-ui/meeting-time-picker";
+import {
+  IssueCardChip,
+  IssueCardProps,
+} from "@/components/generative-ui/issue-card";
+import {
+  IssueList,
+  IssueListProps,
+} from "@/components/generative-ui/issue-list";
 import { ToolReasoning } from "@/components/tool-rendering";
 
 export const useGenerativeUIExamples = () => {
@@ -52,6 +60,24 @@ export const useGenerativeUIExamples = () => {
     description: "Controlled Generative UI that displays data as a bar chart.",
     parameters: BarChartProps,
     render: BarChart,
+  });
+
+  // Inline issue cards — register both the single-issue chip and the list
+  // wrapper. The agent triggers them via render_issue_list (backend tool).
+  useComponent({
+    name: "issueCard",
+    description:
+      "Render a single project issue as an inline glass card with a 'View on board' button.",
+    parameters: IssueCardProps,
+    render: IssueCardChip,
+  });
+
+  useComponent({
+    name: "issueList",
+    description:
+      "Render a list of issues inline in chat. Prefer passing issueIds (looked up in agent state) over inlining the full issue objects.",
+    parameters: IssueListProps,
+    render: IssueList,
   });
 
   // Default Tool Rendering (backend tool UI)
