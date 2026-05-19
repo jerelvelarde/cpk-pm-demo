@@ -336,8 +336,24 @@ function ChatWired({ agentId, onAgentChange }: ChatWiredProps) {
         <CopilotChatInput
           {...slotProps}
           disclaimer={() => (
+            // Match the input pill's own `cpk:max-w-3xl cpk:mx-auto cpk:px-4`
+            // sizing so the AgentSelector aligns to the pill's right edge
+            // rather than the full chat-panel's right edge. Without this the
+            // disclaimer slot stretches to the parent column width, which
+            // looks fine in app-mode (chat panel is 420px) but visibly drifts
+            // off to the right in chat-only mode where the panel is flex-1.
+            //
+            // Using inline styles (not `cpk:` tailwind classes) because the
+            // host app's Tailwind v4 setup doesn't include CopilotKit's
+            // `cpk:` prefix — those classes are dead in our CSS bundle.
             <div
               style={{
+                width: "100%",
+                maxWidth: "48rem", // matches Tailwind's max-w-3xl (768px)
+                marginLeft: "auto",
+                marginRight: "auto",
+                paddingLeft: 16,
+                paddingRight: 16,
                 display: "flex",
                 justifyContent: "flex-end",
                 paddingTop: 6,
@@ -461,6 +477,17 @@ function HomePage() {
             key={agentId}
             agentId={agentId}
             threadId={threadId}
+            // We pre-mint a fresh UUID on "New thread" / agent-swap to dodge
+            // Redis lock errors on the old thread (see comments on
+            // handleNewThread and onAgentChange). That UUID flips
+            // `hasExplicitThreadId` to true inside CopilotChatView, which
+            // suppresses the welcome screen — so a brand-new thread lands
+            // on a blank panel with the suggestion chips floating at the
+            // top and no "How can I help you today?" greeting above the
+            // input. Override the flag to false: messages-empty + no
+            // explicit thread = welcome screen renders even on a minted
+            // UUID, matching the "first load" experience.
+            hasExplicitThreadId={false}
           >
             <ThreadAutoRotate onLockDetected={handleLockDetected} />
             <ExampleLayout
