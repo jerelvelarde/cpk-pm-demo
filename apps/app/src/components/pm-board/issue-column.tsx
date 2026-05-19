@@ -14,7 +14,11 @@ interface IssueColumnProps {
   onAddIssue: (status: IssueStatus) => void;
   onDropIssue: (id: string, status: IssueStatus) => void;
   isAgentRunning: boolean;
+  /** Global stagger index per issue id. -1 means "already seen, skip animation". */
+  staggerIndexById: Map<string, number>;
 }
+
+const STAGGER_STEP_MS = 60;
 
 export function IssueColumn({
   status,
@@ -24,6 +28,7 @@ export function IssueColumn({
   onAddIssue,
   onDropIssue,
   isAgentRunning,
+  staggerIndexById,
 }: IssueColumnProps) {
   const [dragOver, setDragOver] = useState(false);
 
@@ -75,22 +80,32 @@ export function IssueColumn({
             Empty
           </div>
         ) : (
-          issues.map((issue) => (
-            <div
-              key={issue.id}
-              draggable
-              onDragStart={(e) => {
-                e.dataTransfer.setData("text/issue-id", issue.id);
-                e.dataTransfer.effectAllowed = "move";
-              }}
-            >
-              <IssueCard
-                issue={issue}
-                onUpdate={(changes) => onUpdateIssue(issue.id, changes)}
-                onDelete={() => onDeleteIssue(issue.id)}
-              />
-            </div>
-          ))
+          issues.map((issue) => {
+            const idx = staggerIndexById.get(issue.id) ?? -1;
+            const shouldAnimate = idx >= 0;
+            return (
+              <div
+                key={issue.id}
+                draggable
+                onDragStart={(e) => {
+                  e.dataTransfer.setData("text/issue-id", issue.id);
+                  e.dataTransfer.effectAllowed = "move";
+                }}
+                className={shouldAnimate ? "issue-enter" : undefined}
+                style={
+                  shouldAnimate
+                    ? { animationDelay: `${idx * STAGGER_STEP_MS}ms` }
+                    : undefined
+                }
+              >
+                <IssueCard
+                  issue={issue}
+                  onUpdate={(changes) => onUpdateIssue(issue.id, changes)}
+                  onDelete={() => onDeleteIssue(issue.id)}
+                />
+              </div>
+            );
+          })
         )}
       </div>
     </section>
