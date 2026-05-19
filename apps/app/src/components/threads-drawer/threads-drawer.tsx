@@ -270,18 +270,22 @@ export default function ThreadsDrawer({
         <div className={styles.drawerSurface}>
           <div className={styles.drawerHeader}>
             <div className={styles.drawerHeaderMain}>
-              <h2 className={styles.drawerTitle}>Threads</h2>
+              <h2 className={styles.drawerTitle}>
+                {showArchived ? "Archived" : "Threads"}
+              </h2>
             </div>
             <div className={styles.headerActions}>
-              <button
-                aria-label="Create thread"
-                className={styles.newThreadButton}
-                type="button"
-                onClick={() => onThreadChange(undefined)}
-              >
-                <Plus size={14} />
-                <span>New thread</span>
-              </button>
+              {!showArchived && (
+                <button
+                  aria-label="Create thread"
+                  className={styles.newThreadButton}
+                  type="button"
+                  onClick={() => onThreadChange(undefined)}
+                >
+                  <Plus size={14} />
+                  <span>New thread</span>
+                </button>
+              )}
               <button
                 aria-label="Collapse threads drawer"
                 className={styles.iconButton}
@@ -289,39 +293,6 @@ export default function ThreadsDrawer({
                 onClick={() => setIsOpen(false)}
               >
                 <ChevronLeft size={18} />
-              </button>
-            </div>
-          </div>
-
-          <div className={styles.filterBar}>
-            <div
-              aria-label="Thread filter"
-              className={styles.segmented}
-              role="tablist"
-            >
-              <button
-                aria-selected={!showArchived}
-                className={cx(
-                  styles.segmentedOption,
-                  !showArchived && styles.segmentedOptionActive,
-                )}
-                role="tab"
-                type="button"
-                onClick={() => setShowArchived(false)}
-              >
-                Active
-              </button>
-              <button
-                aria-selected={showArchived}
-                className={cx(
-                  styles.segmentedOption,
-                  showArchived && styles.segmentedOptionActive,
-                )}
-                role="tab"
-                type="button"
-                onClick={() => setShowArchived(true)}
-              >
-                Show archived
               </button>
             </div>
           </div>
@@ -378,12 +349,18 @@ export default function ThreadsDrawer({
               <div className={styles.emptyState}>
                 <div className={styles.emptyCard}>
                   <p className={styles.emptyTitle}>
-                    {searchQuery ? "No matches" : "No threads yet"}
+                    {searchQuery
+                      ? "No matches"
+                      : showArchived
+                        ? "No archived threads"
+                        : "No threads yet"}
                   </p>
                   <p className={styles.emptyMessage}>
                     {searchQuery
                       ? `Nothing matches "${searchQuery}". Try a different query.`
-                      : "Create a thread to start a fresh conversation."}
+                      : showArchived
+                        ? "Threads you archive show up here."
+                        : "Create a thread to start a fresh conversation."}
                   </p>
                 </div>
               </div>
@@ -554,6 +531,29 @@ export default function ThreadsDrawer({
                 )}
               </div>
             )}
+          </div>
+
+          <div className={styles.drawerFooter}>
+            <button
+              className={styles.footerLink}
+              type="button"
+              onClick={() => {
+                setShowArchived((v) => !v);
+                setSearchQuery("");
+              }}
+            >
+              {showArchived ? (
+                <>
+                  <ChevronLeft size={13} />
+                  <span>Back to active</span>
+                </>
+              ) : (
+                <>
+                  <Archive size={13} />
+                  <span>Show archived</span>
+                </>
+              )}
+            </button>
           </div>
         </div>
       </aside>

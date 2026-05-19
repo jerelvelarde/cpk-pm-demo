@@ -130,12 +130,6 @@
   background: #ffffff;
 }
 
-.filterBar {
-  display: flex;
-  align-items: center;
-  padding: 0.5rem 1rem 0.4rem;
-}
-
 .searchBar {
   position: relative;
   display: flex;
@@ -189,25 +183,24 @@
   outline: none;
 }
 
-.segmented {
-  display: inline-flex;
-  width: 100%;
-  padding: 0.2rem;
-  border: 1px solid #dbdbe5;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.35);
-  gap: 0.15rem;
+.drawerFooter {
+  flex-shrink: 0;
+  padding: 0.5rem 1rem 0.75rem;
+  border-top: 1px solid #dbdbe5;
 }
 
-.segmentedOption {
-  flex: 1;
-  min-height: 32px;
-  padding: 0.3rem 0.75rem;
+.footerLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  height: 28px;
+  padding: 0 0.5rem;
+  margin-left: -0.25rem;
   border: 0;
   border-radius: 6px;
   background: transparent;
   font-family: var(--font-body);
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 500;
   color: var(--text-secondary);
   cursor: pointer;
@@ -216,18 +209,14 @@
     color 140ms ease;
 }
 
-.segmentedOption:hover {
+.footerLink:hover {
+  background: rgba(255, 255, 255, 0.5);
   color: var(--text-primary);
 }
 
-.segmentedOption:focus-visible {
+.footerLink:focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 2px;
-}
-
-.segmentedOptionActive {
-  background: #ffffff;
-  color: var(--text-primary);
 }
 
 .drawerContent {
