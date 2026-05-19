@@ -341,6 +341,11 @@ function ChatWired({ agentId, onAgentChange }: ChatWiredProps) {
                 display: "flex",
                 justifyContent: "flex-end",
                 paddingTop: 6,
+                // CopilotChatInput's outer container is pointer-events:none;
+                // only the input pill gets pointer-events:auto back. The
+                // disclaimer slot is a sibling, so without this it inherits
+                // the none and our AgentSelector can't receive clicks/hover.
+                pointerEvents: "auto",
               }}
             >
               <AgentSelector agentId={agentId} onChange={onAgentChange} />
