@@ -33,14 +33,19 @@ from src.query import query_data
 
 
 class SeedIssuesMiddleware(AgentMiddleware):
-    """Populate state.issues with the seed list on first run of a thread."""
+    """Populate state.issues with the seed list on first run of a thread.
+
+    Distinguish "unset" (None — first run, seed) from "explicitly empty"
+    ([] — user cleared the board, leave alone). Treating [] as missing
+    re-seeds on every subsequent run and silently undoes /clear.
+    """
 
     def before_agent(self, state: Any, runtime: Any) -> dict | None:  # type: ignore[override]
         try:
             current = state.get("issues") if isinstance(state, dict) else getattr(state, "issues", None)
         except Exception:
             current = None
-        if not current:
+        if current is None:
             return {"issues": _seed_issues()}
         return None
 

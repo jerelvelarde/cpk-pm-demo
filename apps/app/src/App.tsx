@@ -1,8 +1,10 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   CopilotChat,
   CopilotChatConfigurationProvider,
   CopilotKit,
+  useAgent,
+  useCopilotChatConfiguration,
 } from "@copilotkit/react-core/v2";
 import { ExampleLayout } from "@/components/example-layout";
 import { PmBoard } from "@/components/pm-board";
@@ -24,9 +26,26 @@ function ChatWired() {
   // available and the welcome-screen suggestion list rendered empty.
   useGenerativeUIExamples();
   useExampleSuggestions();
+
+  const config = useCopilotChatConfiguration();
+  const { agent } = useAgent({ agentId: config?.agentId });
+
+  // Slash commands. CopilotChatInput surfaces these in a popover when the
+  // user types "/" and runs the matching item's action on Enter — bypassing
+  // the LLM entirely, which is what you want for destructive shortcuts.
+  const toolsMenu = useMemo(
+    () => [
+      {
+        label: "clear",
+        action: () => agent.setState({ issues: [] }),
+      },
+    ],
+    [agent],
+  );
+
   return (
     <CopilotChat
-      input={{ disclaimer: () => null, className: "pb-6" }}
+      input={{ disclaimer: () => null, className: "pb-6", toolsMenu }}
       attachments={{
         enabled: true,
         accept: "image/*,application/pdf",
