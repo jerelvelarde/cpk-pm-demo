@@ -1,7 +1,3 @@
-/**
- * Suggestion pills shown in the chat UI. Each suggestion triggers a specific
- * demo feature when clicked. These are PM-copilot themed.
- */
 import { useConfigureSuggestions } from "@copilotkit/react-core/v2";
 
 export const useExampleSuggestions = () => {
@@ -10,37 +6,32 @@ export const useExampleSuggestions = () => {
       {
         title: "Plan next sprint",
         message:
-          "Enable app mode, then look at the current backlog and propose what we should pull into next sprint. Move 3-4 high priority issues into Todo using propose_issue_change so I can approve each one.",
+          "Look at the backlog and propose 3-4 high-priority issues to pull into next sprint. Walk me through each one so I can approve.",
       },
       {
         title: "Analyze backlog",
-        message:
-          "Use analyze_backlog to walk through what's in the backlog right now. Focus on what's blocking ship.",
+        message: "Analyze the backlog and tell me what's blocking ship.",
       },
       {
         title: "Show me urgent issues",
-        message:
-          "Use render_issue_list to show me all Urgent priority issues inline in chat.",
+        message: "Show me all the urgent issues right now.",
       },
       {
         title: "Move ISS-101 to Done",
-        message:
-          "Use propose_issue_change to move ISS-101 to Done status — I'll approve via the card.",
+        message: "Move ISS-101 to Done.",
       },
       {
-        title: "Open a sketch for the checkout redesign",
+        title: "Sketch the checkout redesign",
         message:
-          "Open a sketch for the checkout redesign — use Excalidraw to wireframe a guest-checkout flow with an upsell modal.",
+          "Sketch a guest-checkout flow with an upsell modal for our checkout redesign.",
       },
       {
         title: "Bar chart by status",
-        message:
-          "Show me a bar chart of issue counts by status. Use the query_data tool to fetch the data first, then render with the barChart component.",
+        message: "Show me a bar chart of issue counts by status.",
       },
       {
         title: "Toggle theme",
-        message:
-          "Toggle the app theme between glass-light and glass-frosted using the toggleTheme tool.",
+        message: "Toggle the app theme.",
       },
     ],
     available: "always",

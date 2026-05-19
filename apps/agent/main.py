@@ -30,7 +30,6 @@ from src.a2ui_fixed_schema import search_flights
 from src.analysis import analyze_backlog
 from src.issues import AgentState, _seed_issues, issue_tools
 from src.query import query_data
-from src.render_issues import render_issue_list
 
 
 class SeedIssuesMiddleware(AgentMiddleware):
@@ -52,7 +51,6 @@ agent = create_agent(
         query_data,
         *issue_tools,
         analyze_backlog,
-        render_issue_list,
         generate_a2ui,
         search_flights,
     ],
@@ -73,9 +71,10 @@ agent = create_agent(
           PDF): call manage_issues with the full new list.
         - Single edit (moving one issue, changing one assignee): call
           propose_issue_change so the user approves via the in-chat card.
-        - Showing issues inline in chat: call render_issue_list with the issue
-          ids. The frontend renders them as glass cards with a "View on board"
-          button.
+        - Showing issues inline in chat: call the issueList frontend tool
+          directly with issueIds=[...]. It renders the issues as glass cards
+          with a "View on board" button. Call get_issues first if you don't
+          already have the ids.
         - Deep analysis ("what should we cut?", "what's blocking ship?"): call
           analyze_backlog. It emits step-by-step progress that shows up in the
           shared-state timeline panel.

@@ -27,7 +27,6 @@ from src.tools import (
     get_issues,
     manage_issues,
     propose_issue_change,
-    render_issue_list,
 )
 
 
@@ -45,8 +44,9 @@ Tools:
 - manage_issues: bulk replace.
 - propose_issue_change: single edit, asks user to approve. Always follow
   up with the proposeIssueMutation frontend tool.
-- render_issue_list: inline glass cards in chat. Follow up with the
-  issueList generative UI.
+- issueList (frontend tool): call directly with issueIds=[...] to surface
+  a set of issues inline in chat as glass cards. Use whenever the user
+  asks to show / list / see specific issues.
 - analyze_backlog: open-ended analysis.
 """.strip()
 
@@ -66,7 +66,6 @@ _inner_agent = ADKBaseAgent(
         get_issues,
         manage_issues,
         propose_issue_change,
-        render_issue_list,
         analyze_backlog,
     ],
 )

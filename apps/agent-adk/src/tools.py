@@ -1,7 +1,7 @@
 """
 Tool surface for the ADK PM-copilot. Mirrors apps/agent/src/issues.py +
-analysis.py + render_issues.py — same names so the frontend doesn't care
-which backend is wired in.
+analysis.py — same names so the frontend doesn't care which backend is
+wired in.
 
 ADK uses plain Python functions as tools; type hints + the docstring drive
 the schema the model sees.
@@ -70,19 +70,6 @@ def propose_issue_change(issue_id: str, changes_json: str) -> str:
         f"Proposed change to {issue_id}: {changes_json}. "
         f"Now call the proposeIssueMutation frontend tool with issueId="
         f"'{issue_id}' and changes={changes_json} to surface the approval card."
-    )
-
-
-def render_issue_list(issue_ids_csv: str, caption: str = "") -> str:
-    """
-    Show a list of issues inline in chat as glass cards. `issue_ids_csv` is
-    a comma-separated list of issue ids. After calling this, the model MUST
-    call the issueList generative-ui component with the same ids.
-    """
-    ids = [s.strip() for s in issue_ids_csv.split(",") if s.strip()]
-    return (
-        f"Surfacing {len(ids)} issues inline. Now call the issueList "
-        f"generative UI with issueIds={json.dumps(ids)} and caption={caption!r}."
     )
 
 

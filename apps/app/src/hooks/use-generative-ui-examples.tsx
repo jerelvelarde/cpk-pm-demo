@@ -96,8 +96,6 @@ export const useGenerativeUIExamples = () => {
     render: BarChart,
   });
 
-  // Inline issue cards — register both the single-issue chip and the list
-  // wrapper. The agent triggers them via render_issue_list (backend tool).
   useComponent({
     name: "issueCard",
     description:
@@ -109,7 +107,7 @@ export const useGenerativeUIExamples = () => {
   useComponent({
     name: "issueList",
     description:
-      "Render a list of issues inline in chat. Prefer passing issueIds (looked up in agent state) over inlining the full issue objects.",
+      "Call this to surface a list of issues inline in chat as glass cards. Use it whenever the user asks to 'show', 'list', or 'see' specific issues. Pass issueIds with the ids you want to surface (e.g. all urgent issues, all unassigned issues, the ones you just edited) — the frontend looks them up in agent state. Call get_issues first if you don't already have the ids.",
     parameters: IssueListProps,
     render: IssueList,
   });
