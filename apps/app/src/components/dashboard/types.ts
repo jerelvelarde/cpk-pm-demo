@@ -25,7 +25,7 @@ export type DashboardLayout = "overview" | "by_assignee" | "by_priority";
  * quick stats, an AI insight card, and the person's tickets, all entering
  * with a stagger animation.
  */
-export type DashboardMode = "stats" | "personProfile";
+export type DashboardMode = "stats" | "personProfile" | "building";
 
 export interface DashboardState {
   filter?: DashboardFilter;

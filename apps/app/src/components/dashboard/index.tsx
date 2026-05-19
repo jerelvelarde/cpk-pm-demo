@@ -84,6 +84,14 @@ export function Dashboard() {
     );
   }
 
+  // "Build the dashboard" chip drops state.dashboard.mode = "building" for a
+  // beat before clearing it to {} — gives the demo a perceptible build-up
+  // animation so the dashboard reads as "created on the fly" rather than
+  // popping in fully formed.
+  if (dashboard.mode === "building") {
+    return <BuildingView />;
+  }
+
   return (
     <div
       style={{
@@ -679,6 +687,168 @@ function AssigneeBars({ data }: { data: { key: string; value: number }[] }) {
         );
       })}
     </div>
+  );
+}
+
+// ------------------------------------------------------------ building state
+
+/**
+ * "Creating the dashboard" loading view. Shown for ~1s after the user
+ * clicks the "Build the dashboard" chip, before the real dashboard
+ * replaces it. Skeleton cards mirror the actual layout (stats row +
+ * two-up chart cards + assignee bars) so the transition feels like the
+ * placeholders are filling in rather than swapping panels.
+ */
+function BuildingView() {
+  return (
+    <div
+      style={{
+        position: "relative",
+        zIndex: 1,
+        height: "100%",
+        padding: 20,
+        overflow: "hidden",
+        display: "flex",
+        flexDirection: "column",
+        gap: 16,
+      }}
+    >
+      {/* header skeleton with live status text */}
+      <div
+        style={{
+          background: "rgba(255, 255, 255, 0.5)",
+          border: "2px solid #ffffff",
+          borderRadius: 8,
+          padding: "14px 16px",
+          backdropFilter: "blur(6px)",
+          WebkitBackdropFilter: "blur(6px)",
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+        }}
+      >
+        <Spinner />
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <div
+            style={{
+              fontSize: 14,
+              fontWeight: 500,
+              color: "#010507",
+              letterSpacing: "-0.005em",
+            }}
+          >
+            Creating the dashboard
+            <BlinkDots />
+          </div>
+          <div style={{ fontSize: 11, color: "#57575b" }}>
+            Aggregating the backlog by status, priority, and assignee
+          </div>
+        </div>
+      </div>
+
+      {/* stats skeleton */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(4, 1fr)",
+          gap: 12,
+        }}
+      >
+        {Array.from({ length: 4 }).map((_, i) => (
+          <SkeletonCard key={i} delay={i * 90} height={72} />
+        ))}
+      </div>
+
+      {/* chart row skeleton */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap: 16,
+        }}
+      >
+        <SkeletonCard delay={360} height={220} />
+        <SkeletonCard delay={440} height={220} />
+      </div>
+
+      {/* assignee skeleton */}
+      <SkeletonCard delay={560} height={180} />
+    </div>
+  );
+}
+
+function SkeletonCard({
+  delay = 0,
+  height,
+}: {
+  delay?: number;
+  height: number;
+}) {
+  return (
+    <div
+      className="dashboard-skeleton-card"
+      style={{
+        background: "rgba(255, 255, 255, 0.55)",
+        border: "2px solid #ffffff",
+        borderRadius: 8,
+        padding: 14,
+        height,
+        backdropFilter: "blur(4px)",
+        WebkitBackdropFilter: "blur(4px)",
+        animationDelay: `${delay}ms`,
+        position: "relative",
+        overflow: "hidden",
+      }}
+    >
+      <div
+        className="dashboard-skeleton-shimmer"
+        style={{
+          position: "absolute",
+          inset: 0,
+          background:
+            "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.65) 50%, transparent 100%)",
+        }}
+      />
+    </div>
+  );
+}
+
+function Spinner() {
+  return (
+    <div
+      style={{
+        width: 18,
+        height: 18,
+        borderRadius: 999,
+        border: "2px solid rgba(1, 5, 7, 0.12)",
+        borderTopColor: "#010507",
+        animation: "dashboard-spinner 700ms linear infinite",
+        flexShrink: 0,
+      }}
+    />
+  );
+}
+
+function BlinkDots() {
+  return (
+    <span
+      aria-hidden
+      style={{
+        display: "inline-block",
+        marginLeft: 2,
+        fontVariantNumeric: "tabular-nums",
+      }}
+    >
+      <span className="dashboard-dot" style={{ animationDelay: "0ms" }}>
+        .
+      </span>
+      <span className="dashboard-dot" style={{ animationDelay: "180ms" }}>
+        .
+      </span>
+      <span className="dashboard-dot" style={{ animationDelay: "360ms" }}>
+        .
+      </span>
+    </span>
   );
 }
 

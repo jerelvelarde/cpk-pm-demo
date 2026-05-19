@@ -252,12 +252,38 @@ function ChatWired({ agentId, onAgentChange, onOpenApp }: ChatWiredProps) {
         // begin before the artificial latency below.
         onOpenApp();
 
+        // "Build the dashboard" gets a two-stage transition: first flip
+        // dashboard.mode to "building" so the dashboard pane shows the
+        // skeleton + "Creating the dashboard..." spinner, then 1.1s later
+        // fall through to the normal `hardcoded.dashboard` patch which
+        // clears that flag and reveals the real dashboard. Without the
+        // intermediate state the panel jumps straight from chat-only to
+        // a fully-rendered dashboard, which reads as canned.
+        const isBuildDashboard = suggestion.title === BUILD_DASHBOARD_TITLE;
+        if (isBuildDashboard) {
+          const current = (agent.state as Record<string, unknown>) ?? {};
+          agent.setState({
+            ...current,
+            // Seed issues here too — Dashboard reads issues for the
+            // background derivation, even though BuildingView ignores
+            // them. Doing it now means the donut/bars below render
+            // with data the instant we flip out of "building".
+            issues: Array.isArray(current.issues) && current.issues.length > 0
+              ? current.issues
+              : SEED_ISSUES,
+            dashboard: { mode: "building" },
+          });
+        }
+
         // Simulate agent latency. Without this gap the assistant message
         // appears in the same frame as the user message — instant replies
         // read as "hardcoded" and break the demo's illusion that an LLM
-        // is on the other end. ~850ms is close to the median first-token
-        // latency of a real model call.
-        await new Promise<void>((resolve) => setTimeout(resolve, 850));
+        // is on the other end. Build-dashboard gets a longer beat so the
+        // creating-the-dashboard skeleton has time to register; the rest
+        // hover around the median first-token latency of a real call.
+        await new Promise<void>((resolve) =>
+          setTimeout(resolve, isBuildDashboard ? 1300 : 850),
+        );
 
         // Lazy-seed agent.state.issues from SEED_ISSUES so inline
         // generative-UI tools (issueTable / issueCard / personProfile)
