@@ -74,6 +74,35 @@ npm run dev:agent
 
 After infrastructure is already running, use the app, BFF, and agent commands directly when you only need to restart one service.
 
+## Deterministic demo mode (aimock)
+
+For a stable demo where every LLM response is replayed from a recorded fixture (no live OpenAI calls, no flake), use the `dev:mock` flow.
+
+```bash
+# One-time: record real OpenAI responses into ./fixtures
+npm run aimock:record
+# (run through the demo flows once; aimock writes the responses)
+
+# Every subsequent demo: replay forever, never call OpenAI
+npm run dev:mock
+```
+
+`dev:mock` starts `aimock` on port 4010 and runs the app, BFF, and agent with `USE_MOCK=1`. The BFF and the Python agent both honor this env and set `OPENAI_BASE_URL=http://localhost:4010/v1`, `OPENAI_API_KEY=mock` so all OpenAI traffic (chat completions + Whisper transcription) is intercepted.
+
+Pre-built scenario fixtures live in `fixtures/`:
+
+| File | What it covers |
+| ---- | -------------- |
+| `sprint-planning.json` | "Plan next sprint" → propose_issue_change loop |
+| `pdf-prd-summary.json` | PDF in → 3 created issues out |
+| `backlog-analysis.json` | analyze_backlog with shared-state progress |
+| `hitl-move-issue.json` | propose_issue_change → proposeIssueMutation HITL approval |
+| `voice-status-update.json` | Whisper transcript + render_issue_list |
+| `mcp-sketch.json` | Open Excalidraw via MCP |
+| `default.json` | Catch-all + general greetings |
+
+To add a new scenario: run `npm run aimock:record`, drive the demo through the new flow, then commit the resulting JSON.
+
 ## Removing Threads
 
 To strip out threads/intelligence and use this as a plain CopilotKit + LangGraph demo:

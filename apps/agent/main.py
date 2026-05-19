@@ -6,11 +6,23 @@ exposes tools the frontend can call. State lives in the agent and syncs
 bidirectionally to the React app via CopilotKit v2.
 """
 
+import os
 from typing import Any
 
 from copilotkit import CopilotKitMiddleware
 from langchain.agents import create_agent
 from langchain.agents.middleware.types import AgentMiddleware
+
+# Deterministic demo mode. When USE_MOCK=1 (set by `npm run dev:mock`), route
+# every OpenAI call through the local aimock server. The fixtures in
+# fixtures/ define the canned responses for the demo scenarios.
+if os.environ.get("USE_MOCK") == "1":
+    os.environ.setdefault("OPENAI_BASE_URL", "http://localhost:4010/v1")
+    os.environ.setdefault("OPENAI_API_KEY", "mock")
+    print(
+        f"[agent] USE_MOCK=1 — routing OpenAI to {os.environ['OPENAI_BASE_URL']}",
+        flush=True,
+    )
 
 # Domain tools
 from src.a2ui_dynamic_schema import generate_a2ui

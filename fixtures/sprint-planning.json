@@ -1,0 +1,36 @@
+{
+  "name": "sprint-planning",
+  "description": "Agent proposes a sprint based on the current backlog. Triggers propose_issue_change for each pick.",
+  "fixtures": [
+    {
+      "match": { "userMessage": "Plan next sprint" },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "propose_issue_change",
+            "arguments": "{\"issue_id\":\"ISS-107\",\"changes\":{\"status\":\"Todo\"}}",
+            "id": "call_propose_iss107"
+          }
+        ]
+      }
+    },
+    {
+      "match": { "toolCallId": "call_propose_iss107" },
+      "response": {
+        "content": "ISS-107 (Postgres connection pool exhaustion) is the most pressing infra issue — I'd pull it into the sprint first. The approval card is in the chat; accept or edit the proposal."
+      }
+    },
+    {
+      "match": { "userMessage": "what else should we pull in" },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "propose_issue_change",
+            "arguments": "{\"issue_id\":\"ISS-118\",\"changes\":{\"status\":\"Todo\",\"priority\":\"Urgent\"}}",
+            "id": "call_propose_iss118"
+          }
+        ]
+      }
+    }
+  ]
+}
