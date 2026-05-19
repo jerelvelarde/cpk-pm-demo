@@ -9,6 +9,7 @@ import {
   useHumanInTheLoop,
   useDefaultRenderTool,
 } from "@copilotkit/react-core/v2";
+import { Issue } from "@/components/pm-board/types";
 
 import {
   PieChart,
@@ -36,6 +37,10 @@ import { ToolReasoning } from "@/components/tool-rendering";
 
 export const useGenerativeUIExamples = () => {
   const { theme, setTheme } = useTheme();
+  // Bind to the same per-thread agent clone the chat is using. Without
+  // agentId from config, useAgent() would resolve to a different default
+  // clone and applyPlanningChanges / updateDashboard would mutate state the
+  // board / dashboard never sees.
   const config = useCopilotChatConfiguration();
   const { agent } = useAgent({ agentId: config?.agentId });
 
@@ -155,6 +160,61 @@ export const useGenerativeUIExamples = () => {
       },
     },
     [theme, setTheme],
+  );
+
+  // applyPlanningChanges: silent partial-update tool used at the end of the
+  // sprint-planning narration. The fixture emits one of these with the diff
+  // derived from the handwritten notes (e.g. ISS-101 -> Done, ISS-113 ->
+  // Todo); the handler reads current state, merges the partial changes by id,
+  // and pushes the new list back via agent.setState. No render — the visible
+  // effect is the board re-rendering with the moved cards. We don't go
+  // through manage_issues here because (a) it would force the fixture to
+  // carry the entire 20-issue list and (b) we want this to be a frontend
+  // mutation so the demo plays even if the agent itself is mocked out.
+  useFrontendTool(
+    {
+      name: "applyPlanningChanges",
+      description:
+        "Apply a list of partial issue updates to the board (status / priority / assignee per id). The frontend merges the diff into agent state. Use after narrating the sprint-planning workflow with agentProgress.",
+      parameters: z.object({
+        changes: z
+          .array(
+            z.object({
+              id: z.string(),
+              status: z
+                .enum([
+                  "Backlog",
+                  "Todo",
+                  "In Progress",
+                  "In Review",
+                  "Done",
+                ])
+                .optional(),
+              priority: z
+                .enum(["Urgent", "High", "Med", "Low"])
+                .optional(),
+              assignee: z.string().nullable().optional(),
+            }),
+          )
+          .describe("Partial updates keyed by issue id."),
+      }),
+      handler: async ({ changes }) => {
+        const current =
+          (agent.state?.issues as Issue[] | undefined) ?? [];
+        const byId = new Map(
+          (changes as Array<Partial<Issue> & { id: string }>).map((c) => [
+            c.id,
+            c,
+          ]),
+        );
+        const updated = current.map((issue) => {
+          const change = byId.get(issue.id);
+          return change ? { ...issue, ...change } : issue;
+        });
+        agent.setState({ issues: updated });
+      },
+    },
+    [agent],
   );
 
   // Dashboard Designer (ADK) — agent-driven filter on the stats dashboard.

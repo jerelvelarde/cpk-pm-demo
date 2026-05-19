@@ -1,7 +1,8 @@
 "use client";
 
 import { ChevronDown } from "lucide-react";
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 export type AgentId = "langgraph" | "adk";
 
@@ -18,14 +19,35 @@ const AGENTS: { id: AgentId; label: string; subtitle: string }[] = [
 /**
  * Glass pill dropdown for switching the active backend agent. Same UI for
  * both — the selector just changes which agent the runtime routes to.
+ *
+ * The dropdown panel is portaled into document.body and absolutely positioned
+ * from the trigger's getBoundingClientRect(). The example-layout chat panel
+ * carries `overflow: hidden` (needed for the glass-card border radius), so an
+ * in-tree absolute dropdown would get clipped on the right edge — see the
+ * issue thread for the "Dashboard Designer" clip. Portalling escapes the
+ * clip without forcing the parent to drop overflow:hidden.
  */
 export function AgentSelector({ agentId, onChange }: AgentSelectorProps) {
   const [open, setOpen] = useState(false);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(
+    null,
+  );
   const active = AGENTS.find((a) => a.id === agentId) ?? AGENTS[0];
+
+  // Recompute the menu position whenever it opens. Using useLayoutEffect so
+  // the menu paints in the right spot on the first frame (no flicker from
+  // top: 0 / left: 0 → measured rect).
+  useLayoutEffect(() => {
+    if (!open || !buttonRef.current) return;
+    const rect = buttonRef.current.getBoundingClientRect();
+    setMenuPos({ top: rect.bottom + 4, left: rect.left });
+  }, [open]);
 
   return (
     <div style={{ position: "relative" }}>
       <button
+        ref={buttonRef}
         onClick={() => setOpen((o) => !o)}
         style={{
           display: "inline-flex",
@@ -62,80 +84,84 @@ export function AgentSelector({ agentId, onChange }: AgentSelectorProps) {
           }}
         />
       </button>
-      {open && (
-        <>
-          <div
-            onClick={() => setOpen(false)}
-            style={{
-              position: "fixed",
-              inset: 0,
-              zIndex: 40,
-            }}
-          />
-          <div
-            style={{
-              position: "absolute",
-              top: "calc(100% + 4px)",
-              left: 0,
-              minWidth: 220,
-              background: "#ffffff",
-              border: "1px solid #dbdbe5",
-              borderRadius: 4,
-              boxShadow: "0px 6px 6px -2px rgba(1, 5, 7, 0.08)",
-              padding: 4,
-              zIndex: 50,
-            }}
-          >
-            {AGENTS.map((a) => {
-              const isActive = a.id === agentId;
-              return (
-                <button
-                  key={a.id}
-                  onClick={() => {
-                    onChange(a.id);
-                    setOpen(false);
-                  }}
-                  style={{
-                    width: "100%",
-                    textAlign: "left",
-                    padding: "8px 10px",
-                    borderRadius: 4,
-                    background: isActive ? "#f0f0f4" : "transparent",
-                    border: 0,
-                    cursor: "pointer",
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: 2,
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!isActive)
-                      (e.currentTarget as HTMLButtonElement).style.background =
-                        "#f7f7f9";
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!isActive)
-                      (e.currentTarget as HTMLButtonElement).style.background =
-                        "transparent";
-                  }}
-                >
-                  <span
+      {open &&
+        menuPos &&
+        createPortal(
+          <>
+            <div
+              onClick={() => setOpen(false)}
+              style={{
+                position: "fixed",
+                inset: 0,
+                zIndex: 40,
+              }}
+            />
+            <div
+              style={{
+                position: "fixed",
+                top: menuPos.top,
+                left: menuPos.left,
+                minWidth: 240,
+                background: "#ffffff",
+                border: "1px solid #dbdbe5",
+                borderRadius: 4,
+                boxShadow: "0px 6px 6px -2px rgba(1, 5, 7, 0.08)",
+                padding: 4,
+                zIndex: 50,
+              }}
+            >
+              {AGENTS.map((a) => {
+                const isActive = a.id === agentId;
+                return (
+                  <button
+                    key={a.id}
+                    onClick={() => {
+                      onChange(a.id);
+                      setOpen(false);
+                    }}
                     style={{
-                      fontSize: 13,
-                      fontWeight: 500,
-                      color: "var(--text-primary)",
+                      width: "100%",
+                      textAlign: "left",
+                      padding: "8px 10px",
+                      borderRadius: 4,
+                      background: isActive ? "#f0f0f4" : "transparent",
+                      border: 0,
+                      cursor: "pointer",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 2,
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!isActive)
+                        (e.currentTarget as HTMLButtonElement).style.background =
+                          "#f7f7f9";
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!isActive)
+                        (e.currentTarget as HTMLButtonElement).style.background =
+                          "transparent";
                     }}
                   >
-                    {a.label}
-                  </span>
-                  <span style={{ fontSize: 11, color: "var(--text-disabled)" }}>
-                    {a.subtitle}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </>
-      )}
+                    <span
+                      style={{
+                        fontSize: 13,
+                        fontWeight: 500,
+                        color: "var(--text-primary)",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {a.label}
+                    </span>
+                    <span style={{ fontSize: 11, color: "var(--text-disabled)" }}>
+                      {a.subtitle}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </>,
+          document.body,
+        )}
     </div>
   );
 }
