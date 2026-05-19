@@ -1,6 +1,6 @@
 /**
  * Suggestion pills shown in the chat UI. Each suggestion triggers a specific
- * demo feature when clicked.
+ * demo feature when clicked. These are PM-copilot themed.
  */
 import { useConfigureSuggestions } from "@copilotkit/react-core/v2";
 
@@ -8,47 +8,39 @@ export const useExampleSuggestions = () => {
   useConfigureSuggestions({
     suggestions: [
       {
-        title: "Pie Chart (Controlled Generative UI)",
+        title: "Plan next sprint",
         message:
-          "Show me a pie chart of our revenue distribution by category. Use the query_data tool to fetch the data first, then render it with the pieChart component.",
+          "Enable app mode, then look at the current backlog and propose what we should pull into next sprint. Move 3-4 high priority issues into Todo using propose_issue_change so I can approve each one.",
       },
       {
-        title: "Bar Chart (Controlled Generative UI)",
+        title: "Analyze backlog",
         message:
-          "Show me a bar chart of our expenses by category. Use the query_data tool to fetch the data first, then render it with the barChart component.",
+          "Use analyze_backlog to walk through what's in the backlog right now. Focus on what's blocking ship.",
       },
       {
-        title: "Schedule Meeting (Human In The Loop)",
+        title: "Show me urgent issues",
         message:
-          "I'd like to schedule a 30-minute meeting to learn about CopilotKit. Please use the scheduleTime tool to let me pick a time.",
+          "Use render_issue_list to show me all Urgent priority issues inline in chat.",
       },
       {
-        title: "Search Flights (A2UI Fixed Schema)",
-        message: "Find flights from SFO to JFK for next Tuesday.",
-      },
-      {
-        title: "Sales Dashboard (A2UI Dynamic)",
+        title: "Move ISS-101 to Done",
         message:
-          "First use the query_data tool to fetch the financial sales data, then using A2UI, show me a sales dashboard with total revenue, new customers, and conversion rate metrics. Include a pie chart of revenue by category and a bar chart of monthly sales.",
+          "Use propose_issue_change to move ISS-101 to Done status — I'll approve via the card.",
       },
       {
-        title: "Excalidraw Diagram (MCP App)",
+        title: "Sketch the checkout redesign",
         message:
-          "Use Excalidraw to create a simple network diagram showing a router connected to two switches, each connected to two computers.",
+          "Use Excalidraw to sketch a quick wireframe for the new checkout flow with guest checkout and an upsell modal.",
       },
       {
-        title: "Calculator App (Open Generative UI)",
+        title: "Bar chart by status",
         message:
-          "Using the generateSandboxedUi tool, build a modern calculator with standard buttons plus labeled metric shortcut buttons that insert their values into the display when clicked. Use sample company data.",
+          "Show me a bar chart of issue counts by status. Use the query_data tool to fetch the data first, then render with the barChart component.",
       },
       {
-        title: "Toggle Theme (Frontend Tools)",
-        message: "Toggle the app theme using the toggleTheme tool.",
-      },
-      {
-        title: "Task Manager (Shared State)",
+        title: "Toggle theme",
         message:
-          "Enable app mode and add three todos about learning CopilotKit: one about reading the docs, one about building a prototype, and one about exploring agent state.",
+          "Toggle the app theme between glass-light and glass-frosted using the toggleTheme tool.",
       },
     ],
     available: "always",

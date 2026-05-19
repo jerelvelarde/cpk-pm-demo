@@ -6,7 +6,7 @@ import {
   CopilotKitProvider,
 } from "@copilotkit/react-core/v2";
 import { ExampleLayout } from "@/components/example-layout";
-import { ExampleCanvas } from "@/components/example-canvas";
+import { PmBoard } from "@/components/pm-board";
 import { ThreadsDrawer } from "@/components/threads-drawer";
 import { ThemeProvider } from "@/hooks/use-theme";
 import { useExampleSuggestions, useGenerativeUIExamples } from "@/hooks";
@@ -52,7 +52,7 @@ function HomePage() {
                 }}
               />
             }
-            appContent={<ExampleCanvas />}
+            appContent={<PmBoard />}
           />
         </CopilotChatConfigurationProvider>
       </div>

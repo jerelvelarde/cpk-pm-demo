@@ -15,7 +15,7 @@ export function ExampleLayout({ chatContent, appContent }: ExampleLayoutProps) {
   useFrontendTool({
     name: "enableAppMode",
     description:
-      "Enable app mode, make sure its open when interacting with todos.",
+      "Open the kanban board (app mode). Call this whenever the user wants to see, edit, or talk about issues.",
     handler: async () => {
       setMode("app");
     },
@@ -23,7 +23,7 @@ export function ExampleLayout({ chatContent, appContent }: ExampleLayoutProps) {
 
   useFrontendTool({
     name: "enableChatMode",
-    description: "Enable chat mode",
+    description: "Close the kanban board and focus on chat.",
     handler: async () => {
       setMode("chat");
     },

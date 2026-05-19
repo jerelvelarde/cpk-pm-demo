@@ -1,35 +1,77 @@
 """
-This is the main entry point for the agent.
-It defines the workflow graph, state, tools, nodes and edges.
+Main entry point for the agent.
+
+Project-management copilot. The agent owns the issue list (kanban state) and
+exposes tools the frontend can call. State lives in the agent and syncs
+bidirectionally to the React app via CopilotKit v2.
 """
+
+from typing import Any
 
 from copilotkit import CopilotKitMiddleware
 from langchain.agents import create_agent
+from langchain.agents.middleware.types import AgentMiddleware
 
-# Data & state tools
+# Domain tools
 from src.a2ui_dynamic_schema import generate_a2ui
 from src.a2ui_fixed_schema import search_flights
+from src.analysis import analyze_backlog
+from src.issues import AgentState, _seed_issues, issue_tools
 from src.query import query_data
-from src.todos import AgentState, todo_tools
+from src.render_issues import render_issue_list
+
+
+class SeedIssuesMiddleware(AgentMiddleware):
+    """Populate state.issues with the seed list on first run of a thread."""
+
+    def before_agent(self, state: Any, runtime: Any) -> dict | None:  # type: ignore[override]
+        try:
+            current = state.get("issues") if isinstance(state, dict) else getattr(state, "issues", None)
+        except Exception:
+            current = None
+        if not current:
+            return {"issues": _seed_issues()}
+        return None
+
 
 agent = create_agent(
     model="openai:gpt-4.1",
-    tools=[query_data, *todo_tools, generate_a2ui, search_flights],
-    middleware=[CopilotKitMiddleware()],
+    tools=[
+        query_data,
+        *issue_tools,
+        analyze_backlog,
+        render_issue_list,
+        generate_a2ui,
+        search_flights,
+    ],
+    middleware=[CopilotKitMiddleware(), SeedIssuesMiddleware()],
     state_schema=AgentState,
     system_prompt="""
-        You are a polished, professional demo assistant. Keep responses to 1-2 sentences.
+        You are a project-management copilot. You help an engineering team
+        triage, plan, and ship work. The user can see a kanban board with five
+        columns (Backlog / Todo / In Progress / In Review / Done). Each issue
+        has an id, title, description, status, priority (Urgent/High/Med/Low),
+        optional assignee, labels, and due date.
+
+        Keep replies to 1-2 sentences unless asked for detail.
 
         Tool guidance:
-        - Flights: call search_flights to show flight cards with a pre-built schema.
-        - Dashboards & rich UI: call generate_a2ui to create dashboard UIs with metrics,
-          charts, tables, and cards. It handles rendering automatically.
-        - Charts: call query_data first, then render with the chart component.
-        - Todos: enable app mode first, then manage todos.
-        - A2UI actions: when you see a log_a2ui_event result (e.g. "view_details"),
-          respond with a brief confirmation. The UI already updated on the frontend.
-        - Attachments: users can attach images and PDFs. Read them directly and
-          summarize, extract data, or convert findings into todos when asked.
+        - Reading the board: call get_issues to see what's there.
+        - Bulk edits (planning a sprint, batch status moves, importing from a
+          PDF): call manage_issues with the full new list.
+        - Single edit (moving one issue, changing one assignee): call
+          propose_issue_change so the user approves via the in-chat card.
+        - Showing issues inline in chat: call render_issue_list with the issue
+          ids. The frontend renders them as glass cards with a "View on board"
+          button.
+        - Deep analysis ("what should we cut?", "what's blocking ship?"): call
+          analyze_backlog. It emits step-by-step progress that shows up in the
+          shared-state timeline panel.
+        - Charts: call query_data first, then render with pieChart / barChart.
+        - Dashboards: generate_a2ui.
+        - Flights: search_flights (kept as a generic A2UI demo).
+        - Attachments: when the user attaches a PDF (e.g. a PRD or spec), read
+          it directly and convert findings into new issues with manage_issues.
     """,
 )
 
