@@ -134,13 +134,15 @@
   position: relative;
   display: flex;
   align-items: center;
-  padding: 0 1rem 0.5rem;
+  padding: 0.5rem 1rem;
   border-bottom: 1px solid #dbdbe5;
 }
 
 .searchIcon {
   position: absolute;
   left: 1.5rem;
+  top: 50%;
+  transform: translateY(-50%);
   color: #838389;
   pointer-events: none;
 }
