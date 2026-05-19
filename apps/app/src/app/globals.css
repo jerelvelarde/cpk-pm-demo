@@ -126,8 +126,12 @@ html {
  * (see node_modules/@copilotkit/react-core/src/v2/styles/globals.css).
  * We frame the chat panel itself as a translucent glass card in
  * apps/app/src/components/example-layout/index.tsx, so let the panel's
- * glass show through instead of stacking opaque white on top of it. */
-[data-copilotkit] {
+ * glass show through instead of stacking opaque white on top of it.
+ *
+ * Scope to data-testid="copilot-chat" — `data-copilotkit` is also set on
+ * dropdown/menu/tooltip portals (see ui/dropdown-menu.tsx, ui/tooltip.tsx),
+ * and a blanket override blanks out their bg-popover surface. */
+[data-copilotkit][data-testid="copilot-chat"] {
   background-color: transparent !important;
 }
 
