@@ -76,7 +76,7 @@ export const useGenerativeUIExamples = () => {
             .enum(["Backlog", "Todo", "In Progress", "In Review", "Done"])
             .optional(),
           priority: z.enum(["Urgent", "High", "Med", "Low"]).optional(),
-          assignee: z.string().nullable().optional(),
+          assignee: z.string().optional(),
           title: z.string().optional(),
           description: z.string().optional(),
         })
@@ -193,7 +193,7 @@ export const useGenerativeUIExamples = () => {
               priority: z
                 .enum(["Urgent", "High", "Med", "Low"])
                 .optional(),
-              assignee: z.string().nullable().optional(),
+              assignee: z.string().optional(),
             }),
           )
           .describe("Partial updates keyed by issue id."),
@@ -232,24 +232,24 @@ export const useGenerativeUIExamples = () => {
       parameters: z.object({
         filter: z
           .object({
+            // NB: no .nullable() on any field below — Google ADK's Schema
+            // validator rejects JSON-Schema's array-form type (`["string",
+            // "null"]`) and only accepts a single type. Since an empty filter
+            // ({}) already means "clear", null was redundant anyway.
             assignee: z
               .string()
-              .nullable()
               .optional()
               .describe(
-                "Assignee name to filter to, e.g. 'Sarah'. null or omitted clears.",
+                "Assignee name to filter to, e.g. 'Sarah'. Omit to clear.",
               ),
             priority: z
               .enum(["Urgent", "High", "Med", "Low"])
-              .nullable()
               .optional(),
             status: z
               .enum(["Backlog", "Todo", "In Progress", "In Review", "Done"])
-              .nullable()
               .optional(),
             labels: z
               .array(z.string())
-              .nullable()
               .optional()
               .describe(
                 "Optional label filter; an issue must have every listed label.",

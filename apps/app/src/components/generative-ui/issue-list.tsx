@@ -90,9 +90,9 @@ export function IssueList({ issueIds, issues, caption }: IssueListArgs) {
           description={issue.description}
           status={issue.status}
           priority={issue.priority}
-          assignee={issue.assignee}
+          assignee={issue.assignee ?? undefined}
           labels={issue.labels}
-          dueDate={issue.dueDate}
+          dueDate={issue.dueDate ?? undefined}
         />
       ))}
     </div>

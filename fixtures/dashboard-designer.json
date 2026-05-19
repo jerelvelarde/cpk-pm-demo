@@ -1,23 +1,7 @@
 {
   "name": "dashboard-designer",
-  "description": "Mock flow for the ADK Dashboard Designer agent. Each fixture is gated on systemMessage 'Dashboard Designer' so it only fires when the ADK agent is selected (the LangGraph PM-copilot uses a different system prompt). The agent's job in this mode is to RESHAPE the dashboard via the updateDashboard frontend tool — never to describe stats in prose when a filter would surface them visually.",
+  "description": "Mock flow for the ADK Dashboard Designer agent. Each chip fires two LLM calls: (1) initial user message → tool_call updateDashboard, then (2) post-tool LLM call → final assistant text. Fixtures are arranged in PAIRS, with the tool-response fixture FIRST so it matches the post-tool call (last msg role:tool with matching toolCallId), and the chip fixture SECOND so it matches the initial user msg (the tool-response fixture's last-is-tool gate prevents it from matching here). DO NOT add `hasToolResult: false` to the chip fixtures — after the first chip click, every subsequent chip's initial LLM call has a tool message in history, and that gate would skip the fixture, falling through to zz-catchall. The userMessage substrings are specific enough to disambiguate between chips on their own.",
   "fixtures": [
-    {
-      "match": {
-        "userMessage": "Show me everything Sarah",
-        "systemMessage": "Dashboard Designer",
-        "hasToolResult": false
-      },
-      "response": {
-        "toolCalls": [
-          {
-            "id": "call_dashboard_sarah",
-            "name": "updateDashboard",
-            "arguments": "{\"filter\":{\"assignee\":\"Sarah\"},\"focus\":\"Showing every issue Sarah owns across all statuses and priorities.\"}"
-          }
-        ]
-      }
-    },
     {
       "match": {
         "toolCallId": "call_dashboard_sarah",
@@ -29,16 +13,15 @@
     },
     {
       "match": {
-        "userMessage": "Filter the dashboard to just the urgent",
-        "systemMessage": "Dashboard Designer",
-        "hasToolResult": false
+        "userMessage": "Show me everything Sarah",
+        "systemMessage": "Dashboard Designer"
       },
       "response": {
         "toolCalls": [
           {
-            "id": "call_dashboard_urgent",
+            "id": "call_dashboard_sarah",
             "name": "updateDashboard",
-            "arguments": "{\"filter\":{\"priority\":\"Urgent\"},\"focus\":\"Only urgent-priority issues — the ones to unblock first.\"}"
+            "arguments": "{\"filter\":{\"assignee\":\"Sarah\"},\"focus\":\"Showing every issue Sarah owns across all statuses and priorities.\"}"
           }
         ]
       }
@@ -54,16 +37,15 @@
     },
     {
       "match": {
-        "userMessage": "Break down the dashboard by assignee",
-        "systemMessage": "Dashboard Designer",
-        "hasToolResult": false
+        "userMessage": "Filter the dashboard to just the urgent",
+        "systemMessage": "Dashboard Designer"
       },
       "response": {
         "toolCalls": [
           {
-            "id": "call_dashboard_by_assignee",
+            "id": "call_dashboard_urgent",
             "name": "updateDashboard",
-            "arguments": "{\"filter\":{},\"focus\":\"Full backlog broken down by who owns what — Alex is carrying the most.\"}"
+            "arguments": "{\"filter\":{\"priority\":\"Urgent\"},\"focus\":\"Only urgent-priority issues — the ones to unblock first.\"}"
           }
         ]
       }
@@ -79,16 +61,15 @@
     },
     {
       "match": {
-        "userMessage": "Show me everything currently in progress",
-        "systemMessage": "Dashboard Designer",
-        "hasToolResult": false
+        "userMessage": "Break down the dashboard by assignee",
+        "systemMessage": "Dashboard Designer"
       },
       "response": {
         "toolCalls": [
           {
-            "id": "call_dashboard_in_progress",
+            "id": "call_dashboard_by_assignee",
             "name": "updateDashboard",
-            "arguments": "{\"filter\":{\"status\":\"In Progress\"},\"focus\":\"In-flight work only — what the team is actively shipping this week.\"}"
+            "arguments": "{\"filter\":{},\"focus\":\"Full backlog broken down by who owns what — Alex is carrying the most.\"}"
           }
         ]
       }
@@ -104,16 +85,15 @@
     },
     {
       "match": {
-        "userMessage": "Reset the filter",
-        "systemMessage": "Dashboard Designer",
-        "hasToolResult": false
+        "userMessage": "Show me everything currently in progress",
+        "systemMessage": "Dashboard Designer"
       },
       "response": {
         "toolCalls": [
           {
-            "id": "call_dashboard_reset",
+            "id": "call_dashboard_in_progress",
             "name": "updateDashboard",
-            "arguments": "{\"filter\":{},\"focus\":\"Full backlog — no filter applied.\"}"
+            "arguments": "{\"filter\":{\"status\":\"In Progress\"},\"focus\":\"In-flight work only — what the team is actively shipping this week.\"}"
           }
         ]
       }
@@ -125,6 +105,21 @@
       },
       "response": {
         "content": "Cleared. Showing the full backlog."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "Reset the filter",
+        "systemMessage": "Dashboard Designer"
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "id": "call_dashboard_reset",
+            "name": "updateDashboard",
+            "arguments": "{\"filter\":{},\"focus\":\"Full backlog — no filter applied.\"}"
+          }
+        ]
       }
     }
   ]

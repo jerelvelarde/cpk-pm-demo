@@ -15,6 +15,7 @@ import {
   PRIORITY_COLORS,
 } from "@/components/pm-board/types";
 import type { DashboardFilter, DashboardState } from "./types";
+import { SEED_ISSUES } from "./seed-issues";
 import { AlertTriangle, Layers, RotateCcw, User, Users } from "lucide-react";
 
 const STATUS_COLOR: Record<IssueStatus, string> = {
@@ -37,7 +38,18 @@ const STATUS_COLOR: Record<IssueStatus, string> = {
 export function Dashboard() {
   const config = useCopilotChatConfiguration();
   const { agent } = useAgent({ agentId: config?.agentId });
-  const issues = (agent.state?.issues as Issue[] | undefined) ?? [];
+
+  // The ADK agent never seeds `state.issues` (no LangGraph-style
+  // before_model hook), so we fall back to the frontend SEED_ISSUES
+  // constant. Critically we do NOT write the seed into agent.state via
+  // setState — doing that on mount kicked off a state-sync request to the
+  // BFF mid-agent-swap, racing the threadId transition and tripping the
+  // CopilotKit Intelligence Platform's lock guard ("Thread X is locked").
+  // The agent doesn't mutate `issues` in Dashboard Designer mode (system
+  // prompt steers it to updateDashboard only), so a local fallback is
+  // sufficient and avoids the round-trip entirely.
+  const issues =
+    (agent.state?.issues as Issue[] | undefined) ?? SEED_ISSUES;
   const dashboard = (agent.state?.dashboard as DashboardState | undefined) ?? {};
   const filter = dashboard.filter ?? {};
 
