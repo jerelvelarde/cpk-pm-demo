@@ -121,3 +121,28 @@ body,
 html {
   height: 100%;
 }
+
+/* MCP App tile — the iframe-based MCP activity (Excalidraw etc.). Frame it
+ * as a glass card so it fits in the chat scroll alongside our other
+ * generative-ui cards. */
+[data-mcp-apps-activity],
+.copilotkit-mcp-apps,
+.cpk-mcp-apps {
+  background: rgba(255, 255, 255, 0.5) !important;
+  border: 2px solid #ffffff !important;
+  border-radius: 8px !important;
+  overflow: hidden;
+  box-shadow: 0px 1px 3px 0px rgba(1, 5, 7, 0.08);
+}
+
+[data-mcp-apps-activity] iframe,
+.copilotkit-mcp-apps iframe,
+.cpk-mcp-apps iframe {
+  display: block;
+  width: 100%;
+  min-height: 380px;
+  max-height: 540px;
+  border: 0;
+  background: #ffffff;
+  border-radius: 6px;
+}

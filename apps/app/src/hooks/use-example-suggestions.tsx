@@ -28,9 +28,9 @@ export const useExampleSuggestions = () => {
           "Use propose_issue_change to move ISS-101 to Done status — I'll approve via the card.",
       },
       {
-        title: "Sketch the checkout redesign",
+        title: "Open a sketch for the checkout redesign",
         message:
-          "Use Excalidraw to sketch a quick wireframe for the new checkout flow with guest checkout and an upsell modal.",
+          "Open a sketch for the checkout redesign — use Excalidraw to wireframe a guest-checkout flow with an upsell modal.",
       },
       {
         title: "Bar chart by status",
