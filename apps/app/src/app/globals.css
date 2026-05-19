@@ -122,17 +122,34 @@ html {
   height: 100%;
 }
 
-/* CopilotKit chat root paints solid white via --background by default
- * (see node_modules/@copilotkit/react-core/src/v2/styles/globals.css).
- * We frame the chat panel itself as a translucent glass card in
- * apps/app/src/components/example-layout/index.tsx, so let the panel's
- * glass show through instead of stacking opaque white on top of it.
+/* CopilotKit's globals.css applies
+ *   [data-copilotkit] { background-color: var(--background); }
+ * to every data-copilotkit element — not just the chat root, but every
+ * assistant message, suggestion container, suggestion pill, etc. With
+ * --background = oklch(1 0 0) inside [data-copilotkit], the entire chat
+ * panel reads as a stack of hard-white cards instead of the translucent
+ * glass we wrap it in.
  *
- * Scope to data-testid="copilot-chat" — `data-copilotkit` is also set on
- * dropdown/menu/tooltip portals (see ui/dropdown-menu.tsx, ui/tooltip.tsx),
- * and a blanket override blanks out their bg-popover surface. */
-[data-copilotkit][data-testid="copilot-chat"] {
+ * Strip background-color from every chat-internal data-copilotkit
+ * surface. Popovers, dropdowns, and tooltips are rendered in portals
+ * mounted to document.body (Radix Portal), so they sit OUTSIDE
+ * [data-testid="copilot-chat"] and keep their bg-popover surface. */
+[data-testid="copilot-chat"],
+[data-testid="copilot-chat"] [data-copilotkit] {
   background-color: transparent !important;
+}
+
+/* Re-apply a subtle glass surface to elements that should still read as
+ * distinct cards on top of the panel:
+ *   - suggestion pills: their cpk:bg-background utility just got nuked
+ *     by the rule above
+ *   - input pill: doesn't carry data-copilotkit, hardcodes cpk:bg-white
+ *     in CopilotChatInput.tsx — needs its own override */
+[data-testid="copilot-suggestion"],
+[data-testid="copilot-chat-input"] {
+  background-color: rgba(255, 255, 255, 0.65) !important;
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
 }
 
 /* MCP App tile — the iframe-based MCP activity (Excalidraw etc.). Frame it
