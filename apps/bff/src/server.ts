@@ -1,5 +1,5 @@
 import { serve } from "@hono/node-server";
-import { HttpAgent } from "@ag-ui/client";
+import { AbstractAgent, HttpAgent } from "@ag-ui/client";
 import {
   CopilotRuntime,
   CopilotKitIntelligence,
@@ -26,12 +26,19 @@ const intelligence = new CopilotKitIntelligence({
 
 // LangGraph agent — the original PM copilot. graphId is the langgraph.json
 // id from apps/agent.
+//
+// Cast to AbstractAgent because @copilotkit/runtime/langgraph bundles its
+// own copy of the AbstractAgent base class with a privately-scoped `_debug`
+// field. Structural type-compat fails against @ag-ui/client's AbstractAgent
+// ("Types have separate declarations of a private property '_debug'") even
+// though they're the same class at runtime. Demo-only workaround; the real
+// fix is upstream deduping the AbstractAgent re-export.
 const langgraphAgent = new LangGraphAgent({
   deploymentUrl:
     process.env.LANGGRAPH_DEPLOYMENT_URL ?? "http://localhost:8123",
   graphId: "sample_agent",
   langsmithApiKey: process.env.LANGSMITH_API_KEY ?? "",
-});
+}) as unknown as AbstractAgent;
 
 // Google ADK agent — same tool surface, exposed as a vanilla AG-UI HTTP
 // endpoint by ag-ui-adk's FastAPI plumbing. We point HttpAgent at it; the
