@@ -122,6 +122,15 @@ html {
   height: 100%;
 }
 
+/* CopilotKit chat root paints solid white via --background by default
+ * (see node_modules/@copilotkit/react-core/src/v2/styles/globals.css).
+ * We frame the chat panel itself as a translucent glass card in
+ * apps/app/src/components/example-layout/index.tsx, so let the panel's
+ * glass show through instead of stacking opaque white on top of it. */
+[data-copilotkit] {
+  background-color: transparent !important;
+}
+
 /* MCP App tile — the iframe-based MCP activity (Excalidraw etc.). Frame it
  * as a glass card so it fits in the chat scroll alongside our other
  * generative-ui cards. */
