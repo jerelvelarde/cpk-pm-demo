@@ -33,8 +33,23 @@ class Issue(TypedDict, total=False):
     dueDate: Optional[str]
 
 
+class AnalysisProgress(TypedDict, total=False):
+    step: str
+    label: str
+    count: int
+    focus: str
+    by_status: dict[str, int]
+    urgent_count: int
+    high_count: int
+    urgent_ids: list[str]
+    plan: str
+
+
 class AgentState(BaseAgentState):
     issues: list[Issue]
+    # Streamed by analyze_backlog via copilotkit_emit_state. Frontend
+    # subscribes to agent.state.analysis to drive the timeline.
+    analysis: AnalysisProgress
 
 
 def _seed_issues() -> list[Issue]:

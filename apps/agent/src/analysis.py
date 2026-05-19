@@ -2,19 +2,16 @@
 Backlog analysis tool.
 
 Emits step-by-step progress via copilotkit_emit_state so the frontend can
-render a "thinking" timeline. See phase 5 for full implementation; this stub
-is the minimum surface the agent needs to compile.
+render a "thinking" timeline. The frontend subscribes to agent.state.analysis
+and animates step transitions.
 """
 
-from typing import Any
+import asyncio
+from typing import Any, cast
+
 from langchain.tools import ToolRuntime, tool
 
-try:
-    # copilotkit SDK ships a helper for streaming partial state to the client.
-    from copilotkit.langgraph import copilotkit_emit_state  # type: ignore
-except ImportError:  # pragma: no cover - fallback if the helper moves
-    async def copilotkit_emit_state(*_args: Any, **_kwargs: Any) -> None:  # type: ignore
-        return None
+from copilotkit.langgraph import copilotkit_emit_state  # type: ignore
 
 
 @tool
@@ -24,59 +21,104 @@ async def analyze_backlog(focus: str, runtime: ToolRuntime) -> str:
     what the user wants ("what should we cut?", "what's blocking ship?",
     "prioritize for next sprint").
 
-    Streams step-by-step progress to the frontend via shared state.
+    Streams step-by-step progress to the frontend via shared state. The
+    frontend renders an animated timeline alongside the chat.
+
+    Use this when the user asks an open-ended analytical question about the
+    board. For simple queries (list / move / edit), use the direct tools
+    instead — analyze_backlog is meant to look visibly thoughtful.
     """
-    issues = runtime.state.get("issues", []) if runtime.state else []
+    state = runtime.state if runtime.state else {}
+    issues = state.get("issues", [])
+    config = cast(Any, runtime).config if hasattr(runtime, "config") else {}
 
-    # Emit progress steps. The frontend timeline subscribes to
-    # agent.state.analysis and animates step transitions.
+    # Step 1 — reading
     await copilotkit_emit_state(
-        runtime.config,
-        {"analysis": {"step": "reading", "count": len(issues), "focus": focus}},
+        config,
+        {
+            "analysis": {
+                "step": "reading",
+                "label": "Reading issues",
+                "count": len(issues),
+                "focus": focus,
+            }
+        },
     )
+    await asyncio.sleep(0.8)
 
-    # Categorize by status
+    # Step 2 — categorize by status
     by_status: dict[str, int] = {}
     for issue in issues:
         s = issue.get("status", "Backlog")
         by_status[s] = by_status.get(s, 0) + 1
     await copilotkit_emit_state(
-        runtime.config,
-        {"analysis": {"step": "categorizing", "by_status": by_status}},
-    )
-
-    # Count high-priority unblockers
-    urgent = [i for i in issues if i.get("priority") == "Urgent"]
-    high = [i for i in issues if i.get("priority") == "High"]
-    await copilotkit_emit_state(
-        runtime.config,
+        config,
         {
             "analysis": {
-                "step": "drafting_plan",
-                "urgent_count": len(urgent),
-                "high_count": len(high),
+                "step": "categorizing",
+                "label": "Categorizing by status",
+                "by_status": by_status,
             }
         },
     )
+    await asyncio.sleep(0.8)
 
-    # Build a tiny summary
+    # Step 3 — identify blockers
+    urgent = [i for i in issues if i.get("priority") == "Urgent"]
+    high = [i for i in issues if i.get("priority") == "High"]
+    await copilotkit_emit_state(
+        config,
+        {
+            "analysis": {
+                "step": "identifying_blockers",
+                "label": "Identifying blockers",
+                "urgent_count": len(urgent),
+                "high_count": len(high),
+                "urgent_ids": [i.get("id") for i in urgent[:5]],
+            }
+        },
+    )
+    await asyncio.sleep(0.8)
+
+    # Step 4 — drafting plan
+    await copilotkit_emit_state(
+        config,
+        {
+            "analysis": {
+                "step": "drafting_plan",
+                "label": "Drafting recommendation",
+            }
+        },
+    )
+    await asyncio.sleep(0.6)
+
     summary_lines = []
     if urgent:
         summary_lines.append(
-            f"{len(urgent)} urgent: " + ", ".join(i["id"] for i in urgent[:5])
+            f"{len(urgent)} urgent: " + ", ".join(i.get("id", "?") for i in urgent[:5])
         )
     if high:
         summary_lines.append(
-            f"{len(high)} high: " + ", ".join(i["id"] for i in high[:5])
+            f"{len(high)} high: " + ", ".join(i.get("id", "?") for i in high[:5])
         )
     summary_lines.append(
-        f"Distribution: " + ", ".join(f"{k}={v}" for k, v in by_status.items())
+        "Status distribution: "
+        + ", ".join(f"{k}={v}" for k, v in by_status.items())
     )
     plan = "\n".join(summary_lines)
 
     await copilotkit_emit_state(
-        runtime.config,
-        {"analysis": {"step": "done", "plan": plan}},
+        config,
+        {
+            "analysis": {
+                "step": "done",
+                "label": "Done",
+                "plan": plan,
+                "by_status": by_status,
+                "urgent_count": len(urgent),
+                "high_count": len(high),
+            }
+        },
     )
 
     return plan
