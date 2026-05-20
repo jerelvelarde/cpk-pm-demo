@@ -16,9 +16,26 @@ import {
 } from "@/components/pm-board/types";
 import type { DashboardFilter, DashboardState } from "./types";
 import { SEED_ISSUES } from "./seed-issues";
-import { PersonProfileView } from "./person-profile";
+import {
+  InsightCard,
+  PersonProfileView,
+  ProfileHeader,
+  ROLES,
+  SectionTitle,
+  StatCard,
+  personProfileStyles,
+} from "./person-profile";
 import { PaintFrame, PaintSurface } from "@/components/paint/PaintFrame";
-import { AlertTriangle, Layers, RotateCcw, User, Users } from "lucide-react";
+import {
+  Activity,
+  AlertTriangle,
+  CheckCircle2,
+  Layers,
+  RotateCcw,
+  Target,
+  User,
+  Users,
+} from "lucide-react";
 
 const STATUS_COLOR: Record<IssueStatus, string> = {
   Backlog: "#838389",
@@ -69,6 +86,23 @@ export function Dashboard() {
   const hasFilter =
     !!filter.assignee || !!filter.priority || !!filter.status ||
     (Array.isArray(filter.labels) && filter.labels.length > 0);
+
+  // buildingProfile mode paints in the person-profile shape (header /
+  // stats / insight / section title / ticket rows) before the chip flips
+  // to personProfile. Checked BEFORE personProfile so the chip's two-step
+  // setState (prelude → final) lands on the paint-in view first. Lives a
+  // beat (~1.3s timed in App.tsx) — same budget as the aggregate
+  // "building" view below — then transitions cleanly to the real
+  // PersonProfileView (same children, same layout, no visible jump).
+  if (dashboard.mode === "buildingProfile" && dashboard.person) {
+    return (
+      <BuildingProfileView
+        person={dashboard.person}
+        issues={issues}
+        insight={dashboard.insight}
+      />
+    );
+  }
 
   // personProfile mode short-circuits the aggregate dashboard. The
   // `key={dashboard.person}` on PersonProfileView re-mounts the component
@@ -837,6 +871,133 @@ function BuildingView({
             </PaintFrame>
           </>
         )}
+      </PaintSurface>
+    </div>
+  );
+}
+
+/**
+ * Paint-in prelude for "Sarah's workload" (and other person-profile
+ * chips down the line). Mirrors PersonProfileView's structure — header,
+ * 4-up stats row, insight card, section title, three placeholder ticket
+ * rows — wrapped in <PaintFrame>s so the demo reads as "the agent is
+ * composing the profile" before the real PersonProfileView mounts.
+ *
+ * Real data flows through where it's known (avatar accent, focus count,
+ * insight text). The ticket rows are placeholder blocks because the real
+ * stagger animation that fires when PersonProfileView mounts is what
+ * sells the "tickets dropping in" — duplicating it here would just
+ * compete with the paint-in phase visuals.
+ *
+ * `.paint-light` (on the outer wrapper) flips the dashed indigo border
+ * + label tag for the light dashboard pane, AND strips the wrapper's
+ * own padding / background / border at the rendered phase so the
+ * inner `personProfileStyles.headerCard` / `.statCard` / `.insightCard`
+ * styling owns the visual (avoids the double-card look).
+ *
+ * Stagger budget: 4 paint frames at 130ms step + 140 + 160 = ~820ms,
+ * fits inside the 1.3s chip-mode timer in App.tsx.
+ */
+function BuildingProfileView({
+  person,
+  issues,
+  insight,
+}: {
+  person: string;
+  issues: Issue[];
+  insight?: string;
+}) {
+  const personIssues = useMemo(
+    () => issues.filter((i) => i.assignee === person),
+    [issues, person],
+  );
+
+  const stats = useMemo(() => {
+    const total = personIssues.length;
+    const inProgress = personIssues.filter((i) => i.status === "In Progress")
+      .length;
+    const urgent = personIssues.filter(
+      (i) => i.priority === "Urgent" || i.priority === "High",
+    ).length;
+    const completed = personIssues.filter((i) => i.status === "Done").length;
+    return { total, inProgress, urgent, completed };
+  }, [personIssues]);
+
+  const accent = ASSIGNEE_COLORS[person] ?? "#bec2ff";
+  const role = ROLES[person] ?? "Product Engineer";
+
+  const fallbackInsight =
+    insight ??
+    `${person} is balancing ${stats.inProgress} active ticket${
+      stats.inProgress === 1 ? "" : "s"
+    } with ${stats.urgent} marked urgent or high.`;
+
+  // Outer container mirrors PersonProfileView's `.root` so the layout
+  // doesn't shift on the buildingProfile → personProfile flip. PaintSurface
+  // theme="none" keeps the existing background; paint-light flips the tag
+  // / wireframe colors to match the dashboard's light gradient.
+  return (
+    <div className={`paint-light ${personProfileStyles.root}`}>
+      <PaintSurface
+        theme="none"
+        autoStagger
+        staggerStep={130}
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 14,
+        }}
+      >
+        <PaintFrame component="Card" id="profile-header">
+          <ProfileHeader
+            person={person}
+            role={role}
+            accent={accent}
+            focusCount={stats.total}
+            styleIndex={0}
+          />
+        </PaintFrame>
+
+        <PaintFrame component="Card" id="profile-stats">
+          <div className={personProfileStyles.statsRow}>
+            <StatCard
+              label="Total"
+              value={stats.total}
+              Icon={Target}
+              tone="#010507"
+              styleIndex={1}
+            />
+            <StatCard
+              label="In progress"
+              value={stats.inProgress}
+              Icon={Activity}
+              tone="#189370"
+              styleIndex={2}
+            />
+            <StatCard
+              label="Urgent / High"
+              value={stats.urgent}
+              Icon={AlertTriangle}
+              tone="#fa5f67"
+              styleIndex={3}
+            />
+            <StatCard
+              label="Shipped"
+              value={stats.completed}
+              Icon={CheckCircle2}
+              tone="#57575b"
+              styleIndex={4}
+            />
+          </div>
+        </PaintFrame>
+
+        <PaintFrame component="Card" id="profile-insight">
+          <InsightCard accent={accent} text={fallbackInsight} styleIndex={5} />
+        </PaintFrame>
+
+        <PaintFrame component="Text" id="profile-section" variant="title">
+          <SectionTitle styleIndex={6}>Open work</SectionTitle>
+        </PaintFrame>
       </PaintSurface>
     </div>
   );

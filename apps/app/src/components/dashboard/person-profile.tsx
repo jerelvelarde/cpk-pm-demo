@@ -12,6 +12,11 @@ import {
 import { requestFocusIssue } from "@/components/pm-board/board-events";
 import styles from "./person-profile.module.css";
 
+// Re-export the stylesheet so the dashboard's buildingProfile view can
+// reuse the same .root / .statsRow classes and keep layout identical
+// across the paint-in → personProfile flip.
+export { styles as personProfileStyles };
+
 /**
  * Person profile view — the hardcoded "Show me everything Sarah is working
  * on" demo response. Renders a profile-style page (avatar header, quick
@@ -130,8 +135,13 @@ export function PersonProfileView({
 }
 
 // -------------------------------------------------------- subcomponents
+//
+// Exported so the dashboard's `buildingProfile` paint-in view can reuse
+// the same JSX/CSS. Keeping a single source of truth means the paint-in
+// → personProfile transition lands the same children at the same
+// positions with the same styling — no visible layout shift.
 
-function ProfileHeader({
+export function ProfileHeader({
   person,
   role,
   accent,
@@ -165,7 +175,7 @@ function ProfileHeader({
   );
 }
 
-function StatCard({
+export function StatCard({
   label,
   value,
   Icon,
@@ -192,7 +202,7 @@ function StatCard({
   );
 }
 
-function InsightCard({
+export function InsightCard({
   accent,
   text,
   styleIndex,
@@ -220,7 +230,7 @@ function InsightCard({
   );
 }
 
-function SectionTitle({
+export function SectionTitle({
   children,
   styleIndex,
 }: {
@@ -310,7 +320,7 @@ function rankIssue(a: Issue, b: Issue): number {
   return PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority];
 }
 
-const ROLES: Record<string, string> = {
+export const ROLES: Record<string, string> = {
   Sarah: "Senior Product Manager",
   Alex: "Staff Software Engineer",
   Jordan: "Infrastructure Engineer",

@@ -160,6 +160,11 @@ export const useGenerativeUIExamples = () => {
   const toolDisplayNames: Record<string, string> = {
     applyPlanningChanges: "writing the tickets",
     enableAppMode: "open sprint board",
+    // Dashboard Designer hardcoded-chip narration tools (emitted by the
+    // Build-the-dashboard / Sarah's-workload chip handlers in App.tsx so
+    // the user sees the agent "do the work" before the pane renders).
+    getData: "Get Data",
+    buildDashboard: "Build Dashboard",
   };
   useDefaultRenderTool({
     render: ({ name, status, parameters }) => {

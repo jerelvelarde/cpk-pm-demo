@@ -20,7 +20,12 @@ import { ThemeShell } from "@/components/theme-shell";
 import { AgentSelector, type AgentId } from "@/components/agent-selector";
 import { EventInspector } from "@/components/event-inspector";
 import { ThemeProvider } from "@/hooks/use-theme";
-import { useExampleSuggestions, useGenerativeUIExamples } from "@/hooks";
+import {
+  COWORK_SUGGESTIONS,
+  DASHBOARD_SUGGESTIONS,
+  useExampleSuggestions,
+  useGenerativeUIExamples,
+} from "@/hooks";
 import { demonstrationCatalog } from "@/declarative-generative-ui/renderers";
 import { buildSprintNotesMessageContent } from "@/lib/mock-sprint-notes";
 import styles from "@/components/threads-drawer/threads-drawer.module.css";
@@ -61,6 +66,14 @@ type HardcodedToolCall = {
 
 type HardcodedDashboardResponse = {
   dashboard?: Record<string, unknown>;
+  /**
+   * Optional paint-in prelude. Set to a dashboard-state shape (e.g.
+   * `{ mode: "building" }` or `{ mode: "buildingProfile", person: "Sarah",
+   * insight: "..." }`) and the chip handler will set this state first,
+   * wait for the paint-in animation to land (~1.3s), then patch in the
+   * main `dashboard` state. Without `prelude`, the chip skips paint-in.
+   */
+  prelude?: Record<string, unknown>;
   assistantContent: string;
   toolCall?: HardcodedToolCall;
 };
@@ -79,7 +92,10 @@ const HARDCODED_DASHBOARD_RESPONSES: Record<string, HardcodedDashboardResponse> 
       // Empty dashboard state = full backlog view with no filter applied.
       // The chip handler also opens app mode so the dashboard pane slides
       // in while the assistant reply streams in, giving the impression of
-      // the dashboard being assembled on the fly.
+      // the dashboard being assembled on the fly. `prelude` flips the
+      // dashboard into the aggregate-shape paint-in view for ~1.3s before
+      // the final `dashboard: {}` takes over.
+      prelude: { mode: "building" },
       dashboard: {},
       assistantContent:
         "Built you a dashboard from the current backlog — totals up top, donut by status, urgency bars, and a per-assignee breakdown. Ask me to filter or zoom into anyone.",
@@ -87,6 +103,16 @@ const HARDCODED_DASHBOARD_RESPONSES: Record<string, HardcodedDashboardResponse> 
     [SARAH_PROFILE_TITLE]: {
       // Switches the dashboard pane into the staggered-entrance person
       // profile view (apps/app/src/components/dashboard/person-profile.tsx).
+      // `prelude` paints in the person-profile shape (header / stats /
+      // insight / section title) before the real PersonProfileView mounts,
+      // so the demo reads as "the agent is composing the profile" instead
+      // of the panel popping in fully formed.
+      prelude: {
+        mode: "buildingProfile",
+        person: "Sarah",
+        insight:
+          "Sarah's load is front-weighted on planning (Q3 roadmap kickoff) and compliance (GDPR data export). Two design tickets are sitting in backlog with no due date — safe to defer if she needs to clear the planning queue first.",
+      },
       dashboard: {
         mode: "personProfile",
         person: "Sarah",
@@ -170,6 +196,60 @@ const HARDCODED_DASHBOARD_RESPONSES: Record<string, HardcodedDashboardResponse> 
 // flows like a real voice transcript.
 const MOCK_TRANSCRIPT = "Plan the next sprint using these meeting notes";
 
+/**
+ * Lookup of chip message → suggestion record. Built once from the same
+ * suggestion lists `useExampleSuggestions` registers, so we can route a
+ * *typed* chip message through the same `handleSelectSuggestion` handler
+ * that a click would. Without this, typing e.g. "Show me everything Sarah
+ * is working on." goes through the default input path → runAgent →
+ * aimock → catch-all (because the hardcoded ADK chips never had fixtures
+ * — they short-circuit on the click handler), and the demo looks broken.
+ *
+ * Exact-match by message text. Trims whitespace on lookup so leading /
+ * trailing spaces don't defeat the match. Lower-case isn't normalized
+ * because the chips ship in sentence case and we want the user to feel
+ * the canned response is "earned" by typing the exact prompt — fuzzy
+ * matching would also fire on prefixes ("Plan the next sprint" alone)
+ * that the demo isn't tuned for.
+ */
+const CHIP_MESSAGE_LOOKUP: Record<string, { title: string; message: string }> =
+  Object.fromEntries(
+    [...COWORK_SUGGESTIONS, ...DASHBOARD_SUGGESTIONS].map((s) => [
+      s.message.trim().toLowerCase(),
+      s,
+    ]),
+  );
+
+function findMatchingSuggestion(
+  raw: string,
+): { title: string; message: string } | undefined {
+  const key = raw.trim().toLowerCase();
+  return CHIP_MESSAGE_LOOKUP[key];
+}
+
+/**
+ * Args dispatch for the Get Data → Build Dashboard narration. Keeps the
+ * ToolReasoning expander informative (concrete-looking parameters per
+ * chip) so the canned response reads as "the agent looked at the right
+ * data" instead of "the demo replayed two empty tool calls."
+ */
+const DATA_PIPELINE_ARGS: Record<
+  string,
+  { getData: Record<string, unknown>; buildDashboard: Record<string, unknown> }
+> = {
+  "Build the dashboard": {
+    getData: { source: "backlog", count: 20 },
+    buildDashboard: {
+      widgets: ["totals", "byStatus", "byPriority", "byAssignee"],
+    },
+  },
+  "Sarah's workload": {
+    getData: { assignee: "Sarah", count: 5 },
+    buildDashboard: { view: "personProfile", person: "Sarah" },
+  },
+};
+
+
 const runtimeUrl = "/api/copilotkit";
 
 interface ChatWiredProps {
@@ -208,6 +288,54 @@ function ChatWired({
   const config = useCopilotChatConfiguration();
   const { agent } = useAgent({ agentId: config?.agentId });
   const { copilotkit } = useCopilotKit();
+
+  // Emit the two-step Get Data → Build Dashboard reasoning chain that
+  // precedes a dashboard render for the Dashboard Designer chips listed in
+  // DATA_PIPELINE_ARGS. Each tool call lands in the chat as an assistant
+  // message (rendered via useDefaultRenderTool → ToolReasoning), spins for
+  // ~600ms, then transitions to "complete" when we add the matching tool
+  // result. Total ≈1.3s — same beat the build-dashboard chip used as a
+  // plain sleep, so the dashboard-pane paint-in animation still gets time
+  // to play through.
+  const narrateDataPipeline = useCallback(
+    async (title: string) => {
+      const args = DATA_PIPELINE_ARGS[title];
+      if (!args) return;
+      const emit = async (
+        name: string,
+        parameters: Record<string, unknown>,
+      ) => {
+        const toolCallId = crypto.randomUUID();
+        agent.addMessage({
+          id: crypto.randomUUID(),
+          role: "assistant",
+          content: "",
+          toolCalls: [
+            {
+              id: toolCallId,
+              type: "function",
+              function: { name, arguments: JSON.stringify(parameters) },
+            },
+          ],
+        });
+        // Hold "executing" so the spinner registers before the green
+        // check; ~600ms feels deliberate without dragging.
+        await new Promise<void>((resolve) => setTimeout(resolve, 600));
+        agent.addMessage({
+          id: crypto.randomUUID(),
+          role: "tool",
+          toolCallId,
+          content: "ok",
+        });
+      };
+      await emit("getData", args.getData);
+      // Brief gap so the second tool's spinner doesn't share a frame
+      // with the first tool's check.
+      await new Promise<void>((resolve) => setTimeout(resolve, 100));
+      await emit("buildDashboard", args.buildDashboard);
+    },
+    [agent],
+  );
 
   // Slash commands. CopilotChatInput surfaces these in a popover when the
   // user types "/" and runs the matching item's action on Enter — bypassing
@@ -261,46 +389,71 @@ function ChatWired({
           content: suggestion.message,
         });
 
-        // Open the app pane immediately so the dashboard slides in while
-        // the canned reply "loads". Most ADK chips need the dashboard
-        // visible to make sense (personProfile, issueTable, barChart);
-        // even Reset benefits from the pane being open. Doing this in the
-        // same tick as the user-message addMessage lets the layout shift
-        // begin before the artificial latency below.
-        onOpenApp();
+        // Determine whether this chip walks through the Get Data → Build
+        // Dashboard narration before showing the dashboard. With narration,
+        // the pane stays in chat-only mode while the two tool-reasoning
+        // rows play in the chat — the pane only opens AFTER the Build
+        // Dashboard step lands, so the user reads the work first and then
+        // sees the result. Without narration, behave like before and open
+        // the pane immediately so the canned reply renders into it.
+        const shouldNarrateDataPipeline =
+          suggestion.title !== undefined &&
+          suggestion.title in DATA_PIPELINE_ARGS;
 
-        // "Build the dashboard" gets a two-stage transition: first flip
-        // dashboard.mode to "building" so the dashboard pane shows the
-        // skeleton + "Creating the dashboard..." spinner, then 1.1s later
-        // fall through to the normal `hardcoded.dashboard` patch which
-        // clears that flag and reveals the real dashboard. Without the
-        // intermediate state the panel jumps straight from chat-only to
-        // a fully-rendered dashboard, which reads as canned.
-        const isBuildDashboard = suggestion.title === BUILD_DASHBOARD_TITLE;
-        if (isBuildDashboard) {
+        if (!shouldNarrateDataPipeline) {
+          onOpenApp();
+        }
+
+        // Chips with a `prelude` get a two-stage transition: first flip
+        // dashboard to the paint-in shape (mode: "building" for the
+        // aggregate dashboard, mode: "buildingProfile" for the person
+        // profile), then ~1.3s later fall through to the normal
+        // `hardcoded.dashboard` patch which reveals the real view.
+        // Without the intermediate state the panel jumps straight from
+        // chat-only to a fully-rendered dashboard, which reads as canned.
+        //
+        // Setting the prelude here (before the pane opens for narrating
+        // chips) is intentional: the Dashboard component only mounts when
+        // mode === "app", so the paint-in animation can't start until the
+        // pane opens. By the time it does, agent.state.dashboard is
+        // already on the prelude shape and the BuildingView / Building-
+        // ProfileView mounts straight into the skeleton phase.
+        if (hardcoded.prelude) {
           const current = (agent.state as Record<string, unknown>) ?? {};
           agent.setState({
             ...current,
-            // Seed issues here too — Dashboard reads issues for the
-            // background derivation, even though BuildingView ignores
-            // them. Doing it now means the donut/bars below render
-            // with data the instant we flip out of "building".
+            // Seed issues here too — the paint-in views read issues for
+            // any inline derivation (stats counts on the person profile
+            // header, etc.) so the cards show real numbers the instant
+            // they reach the rendered phase.
             issues: Array.isArray(current.issues) && current.issues.length > 0
               ? current.issues
               : SEED_ISSUES,
-            dashboard: { mode: "building" },
+            dashboard: hardcoded.prelude,
           });
         }
 
         // Simulate agent latency. Without this gap the assistant message
         // appears in the same frame as the user message — instant replies
         // read as "hardcoded" and break the demo's illusion that an LLM
-        // is on the other end. Build-dashboard gets a longer beat so the
-        // creating-the-dashboard skeleton has time to register; the rest
-        // hover around the median first-token latency of a real call.
-        await new Promise<void>((resolve) =>
-          setTimeout(resolve, isBuildDashboard ? 1300 : 850),
-        );
+        // is on the other end. Build-dashboard / Sarah's workload swap
+        // the plain sleep for a two-step Get Data → Build Dashboard
+        // reasoning narration that lands in the chat as ToolReasoning
+        // rows. The pane opens AFTER the narration completes; the paint-
+        // in animation budget (~1.3s) is then awaited so the reveal plays
+        // fully before the final `hardcoded.dashboard` setState below
+        // flips the dashboard out of the prelude state.
+        if (shouldNarrateDataPipeline && suggestion.title) {
+          await narrateDataPipeline(suggestion.title);
+          onOpenApp();
+          if (hardcoded.prelude) {
+            await new Promise<void>((resolve) => setTimeout(resolve, 1300));
+          }
+        } else {
+          await new Promise<void>((resolve) =>
+            setTimeout(resolve, hardcoded.prelude ? 1300 : 850),
+          );
+        }
 
         // Lazy-seed agent.state.issues from SEED_ISSUES so inline
         // generative-UI tools (issueTable / issueCard / personProfile)
@@ -394,7 +547,7 @@ function ChatWired({
         console.error("[ChatWired] runAgent failed after suggestion", err);
       }
     },
-    [agent, copilotkit, onOpenApp, onThreadTouched],
+    [agent, copilotkit, onOpenApp, onThreadTouched, narrateDataPipeline],
   );
 
   // Function-component input slot. We need closure access to the bound
@@ -404,16 +557,39 @@ function ChatWired({
   // onFinishTranscribeWithAudio but can't read the bound onChange/value.
   const InputSlot = useCallback(
     (slotProps: CopilotChatInputProps) => {
-      const { value, onChange } = slotProps;
+      const { value, onChange, onSubmitMessage } = slotProps;
       const handleFinishTranscribeWithAudio = async (_audioBlob: Blob) => {
         const prev =
           typeof value === "string" ? value.trim() : "";
         const next = prev ? `${prev} ${MOCK_TRANSCRIPT}` : MOCK_TRANSCRIPT;
         onChange?.(next);
       };
+      // Intercept the input's send action. If the typed text exactly
+      // matches a known chip's message, route it through the suggestion
+      // handler — that way ADK hardcoded chips (Sarah's workload, Build
+      // the dashboard, etc.) produce the same canned UX when typed as
+      // when clicked, and Cowork chips that auto-attach assets (sprint
+      // notes image) still get the attachment. Anything that doesn't
+      // match falls through to the default CopilotChat send path
+      // (addMessage + runAgent → BFF → aimock).
+      //
+      // Caveat: this discards any selected attachments on a chip match
+      // — the chip path doesn't accept them. Acceptable edge case for
+      // the demo since the user typing a chip message verbatim is
+      // already a deliberate act.
+      const handleSubmitMessage = async (raw: string) => {
+        const match = findMatchingSuggestion(raw);
+        if (match) {
+          onChange?.("");
+          await handleSelectSuggestion(match);
+          return;
+        }
+        await onSubmitMessage?.(raw);
+      };
       return (
         <CopilotChatInput
           {...slotProps}
+          onSubmitMessage={handleSubmitMessage}
           disclaimer={() => (
             // Match the input pill's own `cpk:max-w-3xl cpk:mx-auto cpk:px-4`
             // sizing so the AgentSelector aligns to the pill's right edge
@@ -452,7 +628,7 @@ function ChatWired({
         />
       );
     },
-    [toolsMenu, agentId, onAgentChange],
+    [toolsMenu, agentId, onAgentChange, handleSelectSuggestion],
   );
 
   return (
