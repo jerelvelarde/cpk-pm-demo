@@ -265,69 +265,6 @@ html {
   }
 }
 
-/* Dashboard "creating" loading state. The skeleton cards fade up while a
- * shimmer sweep moves across them, the header spinner rotates, and three
- * dots pulse next to "Creating the dashboard" — so the demo's
- * "Build the dashboard" chip feels like the agent is assembling the view
- * on the fly. */
-@keyframes dashboard-spinner {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@keyframes dashboard-skeleton-enter {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes dashboard-skeleton-shimmer {
-  0% {
-    transform: translateX(-100%);
-  }
-  100% {
-    transform: translateX(100%);
-  }
-}
-
-@keyframes dashboard-dot-pulse {
-  0%,
-  80%,
-  100% {
-    opacity: 0.2;
-  }
-  40% {
-    opacity: 1;
-  }
-}
-
-.dashboard-skeleton-card {
-  animation: dashboard-skeleton-enter 320ms cubic-bezier(0.22, 1, 0.36, 1)
-    both;
-}
-
-.dashboard-skeleton-shimmer {
-  animation: dashboard-skeleton-shimmer 1.4s ease-in-out infinite;
-}
-
-.dashboard-dot {
-  display: inline-block;
-  animation: dashboard-dot-pulse 1.2s infinite ease-in-out both;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .dashboard-skeleton-shimmer,
-  .dashboard-dot {
-    animation: none;
-  }
-}
-
 /* Inline generative-UI entrance. Used by chart and table components that
  * surface as assistant message attachments (BarChart, PieChart, IssueTable,
  * IssueList) so the panel fades + slides in instead of popping into place

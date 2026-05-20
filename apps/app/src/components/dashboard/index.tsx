@@ -17,6 +17,7 @@ import {
 import type { DashboardFilter, DashboardState } from "./types";
 import { SEED_ISSUES } from "./seed-issues";
 import { PersonProfileView } from "./person-profile";
+import { PaintFrame, PaintSurface } from "@/components/paint/PaintFrame";
 import { AlertTriangle, Layers, RotateCcw, User, Users } from "lucide-react";
 
 const STATUS_COLOR: Record<IssueStatus, string> = {
@@ -85,11 +86,27 @@ export function Dashboard() {
   }
 
   // "Build the dashboard" chip drops state.dashboard.mode = "building" for a
-  // beat before clearing it to {} — gives the demo a perceptible build-up
-  // animation so the dashboard reads as "created on the fly" rather than
-  // popping in fully formed.
+  // beat before clearing it to {}. We paint the *real* dashboard subcomponents
+  // through the skeleton → wireframe → rendered phase animation so the demo
+  // reads as "the agent is designing the UI piece by piece" rather than the
+  // pane popping in fully formed. Derived data flows through unchanged — by
+  // the time the paint completes the cards show real numbers, then mode flips
+  // and the un-wrapped Dashboard tree below takes over without visible jump.
   if (dashboard.mode === "building") {
-    return <BuildingView />;
+    return (
+      <BuildingView
+        total={issues.length}
+        filteredCount={filtered.length}
+        focus={dashboard.focus}
+        filter={filter}
+        hasIssues={hasIssues}
+        hasFilter={hasFilter}
+        stats={stats}
+        byStatus={byStatus}
+        byPriority={byPriority}
+        byAssignee={byAssignee}
+      />
+    );
   }
 
   return (
@@ -693,162 +710,135 @@ function AssigneeBars({ data }: { data: { key: string; value: number }[] }) {
 // ------------------------------------------------------------ building state
 
 /**
- * "Creating the dashboard" loading view. Shown for ~1s after the user
- * clicks the "Build the dashboard" chip, before the real dashboard
- * replaces it. Skeleton cards mirror the actual layout (stats row +
- * two-up chart cards + assignee bars) so the transition feels like the
- * placeholders are filling in rather than swapping panels.
+ * "Creating the dashboard" paint-in view. Shown while
+ * state.dashboard.mode === "building". Each meaningful node is wrapped in
+ * a <PaintFrame> that walks skeleton → wireframe → rendered, so the demo
+ * reads as "agent painting the UI piece by piece" rather than the panel
+ * popping in. The PaintFrames hold the *real* dashboard subcomponents,
+ * so by the time the last frame reaches rendered the dashboard shows
+ * real numbers — then the chip handler flips mode to {} and the
+ * un-wrapped Dashboard tree continues without a visible jump.
+ *
+ * Stagger budget: 8 paint frames × 130 ms = ~1.04 s last-start + ~300 ms
+ * skeleton + wireframe = ~1.34 s total, fitting just inside the 1.3 s
+ * chip-mode timer in App.tsx (the un-wrapped re-render lands within a
+ * frame or two of the final paint).
  */
-function BuildingView() {
+function BuildingView({
+  total,
+  filteredCount,
+  focus,
+  filter,
+  hasIssues,
+  hasFilter,
+  stats,
+  byStatus,
+  byPriority,
+  byAssignee,
+}: {
+  total: number;
+  filteredCount: number;
+  focus?: string;
+  filter: DashboardFilter;
+  hasIssues: boolean;
+  hasFilter: boolean;
+  stats: {
+    total: number;
+    inProgress: number;
+    urgent: number;
+    unassigned: number;
+  };
+  byStatus: { key: string; value: number }[];
+  byPriority: { key: string; value: number }[];
+  byAssignee: { key: string; value: number }[];
+}) {
+  // Layout container mirrors the un-wrapped Dashboard render below so the
+  // mode flip lands the children in the exact same grid positions.
   return (
     <div
+      className="paint-light"
       style={{
         position: "relative",
         zIndex: 1,
         height: "100%",
         padding: 20,
-        overflow: "hidden",
+        overflow: "auto",
         display: "flex",
         flexDirection: "column",
         gap: 16,
       }}
     >
-      {/* header skeleton with live status text */}
-      <div
+      <PaintSurface
+        theme="none"
+        autoStagger
+        staggerStep={130}
         style={{
-          background: "rgba(255, 255, 255, 0.5)",
-          border: "2px solid #ffffff",
-          borderRadius: 8,
-          padding: "14px 16px",
-          backdropFilter: "blur(6px)",
-          WebkitBackdropFilter: "blur(6px)",
           display: "flex",
-          alignItems: "center",
-          gap: 12,
-        }}
-      >
-        <Spinner />
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <div
-            style={{
-              fontSize: 14,
-              fontWeight: 500,
-              color: "#010507",
-              letterSpacing: "-0.005em",
-            }}
-          >
-            Creating the dashboard
-            <BlinkDots />
-          </div>
-          <div style={{ fontSize: 11, color: "#57575b" }}>
-            Aggregating the backlog by status, priority, and assignee
-          </div>
-        </div>
-      </div>
-
-      {/* stats skeleton */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(4, 1fr)",
-          gap: 12,
-        }}
-      >
-        {Array.from({ length: 4 }).map((_, i) => (
-          <SkeletonCard key={i} delay={i * 90} height={72} />
-        ))}
-      </div>
-
-      {/* chart row skeleton */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
+          flexDirection: "column",
           gap: 16,
         }}
       >
-        <SkeletonCard delay={360} height={220} />
-        <SkeletonCard delay={440} height={220} />
-      </div>
+        <PaintFrame component="Card" id="header">
+          <DashboardHeader
+            total={total}
+            filteredCount={filteredCount}
+            focus={focus}
+            filter={filter}
+            onReset={() => {
+              /* paint-in is non-interactive */
+            }}
+            hasIssues={hasIssues}
+          />
+        </PaintFrame>
 
-      {/* assignee skeleton */}
-      <SkeletonCard delay={560} height={180} />
+        {hasIssues && (
+          <>
+            <PaintFrame component="Card" id="stats-row">
+              <StatsRow stats={stats} />
+            </PaintFrame>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: 16,
+              }}
+            >
+              <PaintFrame component="Card" id="chart-status">
+                <ChartCard
+                  title="By status"
+                  subtitle={hasFilter ? "Within current filter" : "Full backlog"}
+                >
+                  <Donut
+                    data={byStatus}
+                    colorFor={(k) => STATUS_COLOR[k as IssueStatus]}
+                  />
+                </ChartCard>
+              </PaintFrame>
+
+              <PaintFrame component="Card" id="chart-priority">
+                <ChartCard
+                  title="By priority"
+                  subtitle={
+                    hasFilter
+                      ? "Within current filter"
+                      : "Urgent first — unblockers"
+                  }
+                >
+                  <PriorityBars data={byPriority} />
+                </ChartCard>
+              </PaintFrame>
+            </div>
+
+            <PaintFrame component="Card" id="chart-assignee">
+              <ChartCard title="By assignee" subtitle="Open work per person">
+                <AssigneeBars data={byAssignee} />
+              </ChartCard>
+            </PaintFrame>
+          </>
+        )}
+      </PaintSurface>
     </div>
-  );
-}
-
-function SkeletonCard({
-  delay = 0,
-  height,
-}: {
-  delay?: number;
-  height: number;
-}) {
-  return (
-    <div
-      className="dashboard-skeleton-card"
-      style={{
-        background: "rgba(255, 255, 255, 0.55)",
-        border: "2px solid #ffffff",
-        borderRadius: 8,
-        padding: 14,
-        height,
-        backdropFilter: "blur(4px)",
-        WebkitBackdropFilter: "blur(4px)",
-        animationDelay: `${delay}ms`,
-        position: "relative",
-        overflow: "hidden",
-      }}
-    >
-      <div
-        className="dashboard-skeleton-shimmer"
-        style={{
-          position: "absolute",
-          inset: 0,
-          background:
-            "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.65) 50%, transparent 100%)",
-        }}
-      />
-    </div>
-  );
-}
-
-function Spinner() {
-  return (
-    <div
-      style={{
-        width: 18,
-        height: 18,
-        borderRadius: 999,
-        border: "2px solid rgba(1, 5, 7, 0.12)",
-        borderTopColor: "#010507",
-        animation: "dashboard-spinner 700ms linear infinite",
-        flexShrink: 0,
-      }}
-    />
-  );
-}
-
-function BlinkDots() {
-  return (
-    <span
-      aria-hidden
-      style={{
-        display: "inline-block",
-        marginLeft: 2,
-        fontVariantNumeric: "tabular-nums",
-      }}
-    >
-      <span className="dashboard-dot" style={{ animationDelay: "0ms" }}>
-        .
-      </span>
-      <span className="dashboard-dot" style={{ animationDelay: "180ms" }}>
-        .
-      </span>
-      <span className="dashboard-dot" style={{ animationDelay: "360ms" }}>
-        .
-      </span>
-    </span>
   );
 }
 
