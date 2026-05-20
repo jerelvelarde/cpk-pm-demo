@@ -1,6 +1,6 @@
 {
   "name": "sprint-planning",
-  "description": "Sprint planning demo (mock mode). The chip auto-attaches /sprint-52.png as an image part on the user bubble; this fixture chain then narrates the agent's work: reading image -> transcribing -> planning tickets -> writing tickets, each rendered as an animated agentProgress card. After the four steps, applyPlanningChanges mutates the board (ISS-101 to Done, ISS-111 + ISS-113 to Todo), then a text confirmation closes the run. Every fixture is gated on systemMessage 'project-management copilot' so the BFF's auto-thread-title call doesn't accidentally match the userMessage substring.",
+  "description": "Sprint planning demo (mock mode). The chip auto-attaches /sprint-52.png as an image part on the user bubble; this fixture chain then narrates the agent's work: reading image -> transcribing -> planning tickets -> writing tickets, each rendered as an animated agentProgress card. After the four steps a final agentProgress 'complete' card mounts and collapses the prior four into a single 'Analysis and breakdown complete' summary. Then applyPlanningChanges mutates the board (ISS-101 to Done, ISS-111 + ISS-113 to Todo), enableAppMode opens the right pane, and a text confirmation closes the run. Every fixture is gated on systemMessage 'project-management copilot' so the BFF's auto-thread-title call doesn't accidentally match the userMessage substring.",
   "fixtures": [
     {
       "match": {
@@ -66,6 +66,21 @@
     {
       "match": {
         "toolCallId": "call_progress_writing",
+        "systemMessage": "project-management copilot"
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "id": "call_progress_complete",
+            "name": "agentProgress",
+            "arguments": "{\"step\":\"complete\"}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "toolCallId": "call_progress_complete",
         "systemMessage": "project-management copilot"
       },
       "response": {

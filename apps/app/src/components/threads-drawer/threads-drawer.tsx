@@ -50,6 +50,7 @@ interface DrawerThread {
 const AGENT_LABELS: Record<AgentId, string> = {
   langgraph: "Cowork",
   adk: "Dashboard Designer",
+  mastra: "Engineering Agent",
 };
 
 const THREAD_ENTRY_ANIMATION_MS = 420;
@@ -127,13 +128,22 @@ export default function ThreadsDrawer({
         ...(t.lastRunAt !== undefined ? { lastRunAt: t.lastRunAt } : {}),
       })),
     ];
-    merged.sort((a, b) => {
+    // Empty placeholder threads (minted on agent-swap / New thread but never
+    // used) get persisted to the Intelligence platform with no name and no
+    // lastRunAt. Filter them out so swapping agents back and forth doesn't
+    // litter the drawer with "New thread" entries the user never opened —
+    // except for the *currently active* thread, which we keep visible so the
+    // user can see where they are even mid-first-send.
+    const filtered = merged.filter(
+      (t) => t.id === threadId || t.lastRunAt !== undefined || t.name,
+    );
+    filtered.sort((a, b) => {
       const aTs = new Date(a.lastRunAt ?? a.updatedAt).getTime();
       const bTs = new Date(b.lastRunAt ?? b.updatedAt).getTime();
       return bTs - aTs;
     });
-    return merged;
-  }, [langgraphResult.threads, adkResult.threads]);
+    return filtered;
+  }, [langgraphResult.threads, adkResult.threads, threadId]);
 
   const resultFor = useCallback(
     (id: AgentId) => (id === "adk" ? adkResult : langgraphResult),

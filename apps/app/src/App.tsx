@@ -564,10 +564,14 @@ function HomePage() {
                   // chat mode. Same thread-rotation behavior on swap — an
                   // explicit UUID guarantees CopilotChat's internal cache
                   // can't carry the previous agent's threadId forward and
-                  // trip Redis lock errors on the new agent.
+                  // trip Redis lock errors on the new agent. Also collapse
+                  // to chat-only so the previous agent's right-pane app
+                  // (PmBoard for Cowork, Dashboard for Designer) doesn't
+                  // bleed into the fresh session.
                   onAgentChange={(id) => {
                     setAgentId(id);
                     setThreadId(crypto.randomUUID());
+                    setLayoutMode("chat");
                   }}
                   // Hardcoded ADK chips call this so the dashboard pane
                   // pops open the moment the chip is clicked, even if the

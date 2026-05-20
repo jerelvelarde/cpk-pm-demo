@@ -8,6 +8,10 @@ interface ToolReasoningProps {
   name: string;
   args?: object | unknown;
   status: string;
+  // Friendly label to render in place of the raw tool name. When provided,
+  // the label drops the monospace code font so prose-style phrases ("writing
+  // the tickets") don't read as identifiers.
+  displayName?: string;
 }
 
 function formatValue(value: unknown): string {
@@ -18,10 +22,17 @@ function formatValue(value: unknown): string {
   return String(value);
 }
 
-export function ToolReasoning({ name, args, status }: ToolReasoningProps) {
+export function ToolReasoning({
+  name,
+  args,
+  status,
+  displayName,
+}: ToolReasoningProps) {
   const entries = args ? Object.entries(args) : [];
   const detailsRef = useRef<HTMLDetailsElement>(null);
   const isRunning = status === "executing" || status === "inProgress";
+  const label = displayName ?? name;
+  const labelFontFamily = displayName ? undefined : "var(--font-code)";
 
   // Auto-open while executing, auto-close when complete
   useEffect(() => {
@@ -44,9 +55,9 @@ export function ToolReasoning({ name, args, status }: ToolReasoningProps) {
             <Wrench className="h-3 w-3" />
             <span
               className="font-medium"
-              style={{ fontFamily: "var(--font-code)" }}
+              style={{ fontFamily: labelFontFamily }}
             >
-              {name}
+              {label}
             </span>
             <ChevronDown className="h-3 w-3 ml-auto transition-transform group-open:rotate-180" />
           </summary>
@@ -73,9 +84,9 @@ export function ToolReasoning({ name, args, status }: ToolReasoningProps) {
           <Wrench className="h-3 w-3" />
           <span
             className="font-medium"
-            style={{ fontFamily: "var(--font-code)" }}
+            style={{ fontFamily: labelFontFamily }}
           >
-            {name}
+            {label}
           </span>
         </div>
       )}
