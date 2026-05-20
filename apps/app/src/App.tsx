@@ -490,11 +490,24 @@ function ThreadAutoRotate({
 }
 
 function HomePage() {
-  const [threadId, setThreadId] = useState<string | undefined>(undefined);
+  // Pre-mint a threadId on mount so the active conversation always has a
+  // known UUID in HomePage state. Without this, CopilotChat would
+  // auto-mint internally and the drawer would have no way to identify the
+  // current row → it would fall back to a lastRunAt-based heuristic, which
+  // also lets pre-existing phantom rows (e.g. older "New thread"s from
+  // prior sessions still in the Intelligence platform DB) leak through.
+  const [threadId, setThreadId] = useState<string | undefined>(
+    () => crypto.randomUUID(),
+  );
   const [agentId, setAgentId] = useState<AgentId>("langgraph");
   // Lifted from ExampleLayout so the "New thread" button can flip the
-  // layout back to chat-only when starting a fresh conversation.
-  const [layoutMode, setLayoutMode] = useState<ExampleLayoutMode>("app");
+  // layout back to chat-only when starting a fresh conversation. Initial
+  // load defaults to "chat" — the default agent is Cowork (LangGraph), and
+  // landing on the kanban board with no chat context yet reads as noise.
+  // The user can toggle to app mode via the header or trigger it through
+  // chips like "Build the dashboard" (Designer) that call setLayoutMode
+  // imperatively.
+  const [layoutMode, setLayoutMode] = useState<ExampleLayoutMode>("chat");
 
   // Called by ThreadAutoRotate when a locked-thread RUN_ERROR comes in.
   // Generating a fresh UUID (vs. setting undefined) guarantees CopilotChat's

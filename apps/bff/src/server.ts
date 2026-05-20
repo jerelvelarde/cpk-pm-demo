@@ -66,6 +66,16 @@ const app = createCopilotHonoHandler({
       langgraph: langgraphAgent,
       adk: adkAgent,
     },
+    // Disable LLM-driven thread-name generation. The handler clones the
+    // agent and runs it 3× per user message against random ephemeral
+    // threadIds; those ephemeral runs get persisted on the Intelligence
+    // platform with `lastRunAt` but no name, which leaked into the threads
+    // drawer as phantom "New thread" rows. In USE_MOCK mode title-gen has
+    // no fixture either, so all three attempts always fell back to
+    // "Untitled". Frontend now handles naming entirely client-side via the
+    // threads-drawer rebrand effect (null → agent-specific default with
+    // reveal animation), so the BFF flow is pure noise.
+    generateThreadNames: false,
     openGenerativeUI: true,
     transcriptionService,
     a2ui: {

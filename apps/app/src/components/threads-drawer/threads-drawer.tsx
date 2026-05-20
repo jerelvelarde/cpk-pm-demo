@@ -58,6 +58,20 @@ const TITLE_ANIMATION_MS = 360;
 const UNTITLED_THREAD_LABEL = "New thread";
 const RUNTIME_BASE_PATH = "/api/copilotkit";
 
+// The BFF's thread-name handler writes this string when LLM-driven title
+// generation fails (aimock has no fixture for the title prompt, so all three
+// attempts return invalid). Detect it on the client and swap in an
+// agent-flavoured default after a short beat so the drawer never shows the
+// raw fallback to demo viewers.
+const PLATFORM_FALLBACK_TITLE = "Untitled";
+const TITLE_REBRAND_DELAY_MS = 700;
+
+const AGENT_DEFAULT_TITLES: Record<AgentId, string> = {
+  langgraph: "Plan Backlog from image",
+  adk: "Build dashboard from backlog",
+  mastra: "Engineering session",
+};
+
 function formatThreadTimestamp(updatedAt: string): string {
   const timestamp = new Date(updatedAt);
   if (Number.isNaN(timestamp.getTime())) return "Updated recently";
@@ -110,32 +124,55 @@ export default function ThreadsDrawer({
   });
 
   const threads = useMemo<DrawerThread[]>(() => {
-    const merged: DrawerThread[] = [
-      ...langgraphResult.threads.map((t) => ({
+    // Intelligence platform's WS join code is per-user, not per-(user,agent):
+    // both `useThreads({agentId: "langgraph"})` and `useThreads({agentId:
+    // "adk"})` get the same `joinCode` from /threads, subscribe to the same
+    // `user_meta:<joinCode>` Phoenix topic, and so a thread upsert pushed for
+    // *any* agent shows up in *both* stores. Without dedupe + agentId
+    // disambiguation, a single Cowork thread renders twice in the drawer
+    // (once as "Cowork", once as "Dashboard Designer") immediately after the
+    // first message lands.
+    //
+    // Each thread carries its real partition in `t.agentId` (forwarded from
+    // the REST response and the WS payload), so dedupe by id and trust the
+    // thread's own agentId instead of the partition the hook was scoped to.
+    const seen = new Set<string>();
+    const merged: DrawerThread[] = [];
+    for (const t of [...langgraphResult.threads, ...adkResult.threads]) {
+      if (seen.has(t.id)) continue;
+      seen.add(t.id);
+      // Defensive: ignore threads with an agentId we don't know how to label
+      // (e.g. legacy "default" partition rows). They'd render with a broken
+      // agent badge and route mutations to the wrong store.
+      if (t.agentId !== "langgraph" && t.agentId !== "adk") continue;
+      merged.push({
         id: t.id,
-        agentId: "langgraph" as AgentId,
+        agentId: t.agentId as AgentId,
         name: t.name,
         archived: t.archived,
         updatedAt: t.updatedAt,
         ...(t.lastRunAt !== undefined ? { lastRunAt: t.lastRunAt } : {}),
-      })),
-      ...adkResult.threads.map((t) => ({
-        id: t.id,
-        agentId: "adk" as AgentId,
-        name: t.name,
-        archived: t.archived,
-        updatedAt: t.updatedAt,
-        ...(t.lastRunAt !== undefined ? { lastRunAt: t.lastRunAt } : {}),
-      })),
-    ];
-    // Empty placeholder threads (minted on agent-swap / New thread but never
-    // used) get persisted to the Intelligence platform with no name and no
-    // lastRunAt. Filter them out so swapping agents back and forth doesn't
-    // litter the drawer with "New thread" entries the user never opened —
-    // except for the *currently active* thread, which we keep visible so the
-    // user can see where they are even mid-first-send.
+      });
+    }
+    // Drawer shows a thread iff it's the currently active one OR it has a
+    // non-null name (so real, titled threads from history stay visible).
+    //
+    // Phantoms we exclude:
+    //   - Agent-swap / New-thread minted UUIDs that never received a run
+    //     (no name, no lastRunAt) — purely client-side artifacts.
+    //   - Pre-existing rows from earlier sessions where BFF
+    //     thread-name-generation ran 3× ephemeral runs per user message
+    //     against random throwaway threadIds (now disabled at the runtime
+    //     via `generateThreadNames: false` in apps/bff/src/server.ts).
+    //     Those legacy rows still sit in the Intelligence platform DB
+    //     with a lastRunAt but no name — we deliberately do *not* let
+    //     `lastRunAt !== undefined` rescue them.
+    //
+    // HomePage pre-mints threadId on mount, so the user's actual active
+    // thread always passes via `t.id === threadId` even before the first
+    // message lands.
     const filtered = merged.filter(
-      (t) => t.id === threadId || t.lastRunAt !== undefined || t.name,
+      (t) => t.id === threadId || t.name !== null,
     );
     filtered.sort((a, b) => {
       const aTs = new Date(a.lastRunAt ?? a.updatedAt).getTime();
@@ -216,6 +253,13 @@ export default function ThreadsDrawer({
   const [revealedTitleIds, setRevealedTitleIds] = useState<
     Record<string, true>
   >({});
+  // Threads whose "Untitled" platform fallback has already been swapped for
+  // the agent-specific default title. Keyed by thread id so the same thread
+  // doesn't re-trigger the rebrand on every poll.
+  const [rebrandedTitleIds, setRebrandedTitleIds] = useState<
+    Record<string, true>
+  >({});
+  const rebrandTimeoutsRef = useRef<Map<string, number>>(new Map());
 
   useEffect(() => {
     return () => {
@@ -225,8 +269,58 @@ export default function ThreadsDrawer({
       for (const timeoutId of titleTimeoutsRef.current.values()) {
         window.clearTimeout(timeoutId);
       }
+      for (const timeoutId of rebrandTimeoutsRef.current.values()) {
+        window.clearTimeout(timeoutId);
+      }
     };
   }, []);
+
+  // Watch for threads that need their first real title and schedule a
+  // rebrand → agent-specific default. The 700ms delay lets the user clock
+  // the placeholder/"Untitled" state for a beat so the swap reads as the
+  // copilot retitling the thread, not a typo.
+  //
+  // Triggers on either:
+  //   - name === null: the new default now that BFF title-gen is off
+  //     (`generateThreadNames: false` in apps/bff/src/server.ts). The
+  //     Intelligence platform also doesn't return `lastRunAt` on threads,
+  //     so we can't gate on "has been run" — instead we rely on the
+  //     drawer's filter, which keeps null-named threads in view only when
+  //     they're the *active* thread. So a null name in `threads` here
+  //     already implies "the user's current conversation."
+  //   - name === "Untitled": the BFF's thread-name fallback (only happens
+  //     when generateThreadNames is left on; kept for legacy threads
+  //     carried over from before the flag flipped).
+  useEffect(() => {
+    if (isLoading) return;
+    for (const thread of threads) {
+      const needsRebrand =
+        thread.name === null || thread.name === PLATFORM_FALLBACK_TITLE;
+      if (!needsRebrand) continue;
+      if (rebrandedTitleIds[thread.id]) continue;
+      if (rebrandTimeoutsRef.current.has(thread.id)) continue;
+      const id = thread.id;
+      const tid = window.setTimeout(() => {
+        rebrandTimeoutsRef.current.delete(id);
+        // Replay the existing blur/translate reveal animation so the
+        // rebrand reads as the title "morphing" into its new shape.
+        setRevealedTitleIds((s) => ({ ...s, [id]: true }));
+        setRebrandedTitleIds((s) => ({ ...s, [id]: true }));
+        const existing = titleTimeoutsRef.current.get(id);
+        if (existing !== undefined) window.clearTimeout(existing);
+        const clearTid = window.setTimeout(() => {
+          setRevealedTitleIds((s) => {
+            const updated = { ...s };
+            delete updated[id];
+            return updated;
+          });
+          titleTimeoutsRef.current.delete(id);
+        }, TITLE_ANIMATION_MS);
+        titleTimeoutsRef.current.set(id, clearTid);
+      }, TITLE_REBRAND_DELAY_MS);
+      rebrandTimeoutsRef.current.set(id, tid);
+    }
+  }, [threads, isLoading, rebrandedTitleIds]);
 
   useEffect(() => {
     // Skip diffing while the store is refetching (e.g. after a filter change
@@ -277,7 +371,13 @@ export default function ThreadsDrawer({
         // onto the row's enter animation and produce a visible jitter.
         if (!previousNamesRef.current.has(t.id)) return false;
         const prev = previousNamesRef.current.get(t.id) ?? null;
-        return prev === null && t.name !== null;
+        if (prev !== null || t.name === null) return false;
+        // Skip the reveal for the platform's "Untitled" fallback — the
+        // rebrand effect below schedules its own reveal once the swap to
+        // the agent-specific default lands, so animating the bare "Untitled"
+        // first would just stack two blur reveals back-to-back.
+        if (t.name === PLATFORM_FALLBACK_TITLE) return false;
+        return true;
       })
       .map((t) => t.id);
 
@@ -311,11 +411,28 @@ export default function ThreadsDrawer({
     console.error("Unable to load threads", error);
   }
 
+  const resolveDisplayTitle = useCallback(
+    (thread: DrawerThread): string => {
+      // Once we've marked a thread as rebranded, swap in the agent-specific
+      // default regardless of whether the platform stored null or the
+      // "Untitled" fallback at the time of the swap.
+      if (rebrandedTitleIds[thread.id]) {
+        if (
+          thread.name === null ||
+          thread.name === PLATFORM_FALLBACK_TITLE
+        ) {
+          return AGENT_DEFAULT_TITLES[thread.agentId];
+        }
+      }
+      return thread.name ?? UNTITLED_THREAD_LABEL;
+    },
+    [rebrandedTitleIds],
+  );
+
   const filteredDisplayThreads: DrawerThread[] = searchQuery
-    ? displayThreads.filter((t) => {
-        const haystack = (t.name ?? UNTITLED_THREAD_LABEL).toLowerCase();
-        return haystack.includes(searchQuery.toLowerCase());
-      })
+    ? displayThreads.filter((t) =>
+        resolveDisplayTitle(t).toLowerCase().includes(searchQuery.toLowerCase()),
+      )
     : displayThreads;
 
   if (!isOpen) {
@@ -465,7 +582,7 @@ export default function ThreadsDrawer({
               <div className={styles.threadList}>
                 {filteredDisplayThreads.map((thread) => {
                   const hasTitle = thread.name !== null;
-                  const title = thread.name ?? UNTITLED_THREAD_LABEL;
+                  const title = resolveDisplayTitle(thread);
                   const isRenaming = renamingId === thread.id;
 
                   return (
