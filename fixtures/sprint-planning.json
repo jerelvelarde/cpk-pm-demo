@@ -4,7 +4,7 @@
   "fixtures": [
     {
       "match": {
-        "userMessage": "Plan the next sprint backlog",
+        "userMessage": "Plan the next sprint",
         "systemMessage": "project-management copilot",
         "hasToolResult": false
       },

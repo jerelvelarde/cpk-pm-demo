@@ -10,7 +10,7 @@ const COWORK_SUGGESTIONS = [
   {
     title: "Plan next sprint",
     message:
-      "Plan the next sprint backlog using this meeting notes from our sprint planning.",
+      "Plan the next sprint using these meeting notes",
   },
   {
     title: "Analyze backlog",

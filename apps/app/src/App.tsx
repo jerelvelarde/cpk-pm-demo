@@ -168,8 +168,7 @@ const HARDCODED_DASHBOARD_RESPONSES: Record<string, HardcodedDashboardResponse> 
 // pipeline throws. We still want the mic button to record and animate, then
 // drop a canned utterance into the input box (without sending) so the demo
 // flows like a real voice transcript.
-const MOCK_TRANSCRIPT =
-  "Plan the next sprint backlog using this meeting notes from our sprint planning.";
+const MOCK_TRANSCRIPT = "Plan the next sprint using these meeting notes";
 
 const runtimeUrl = "/api/copilotkit";
 
