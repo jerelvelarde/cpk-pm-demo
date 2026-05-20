@@ -391,46 +391,42 @@ function ChatWired({
 
         // Determine whether this chip walks through the Get Data → Build
         // Dashboard narration before showing the dashboard. With narration,
-        // the pane stays in chat-only mode while the two tool-reasoning
-        // rows play in the chat — the pane only opens AFTER the Build
-        // Dashboard step lands, so the user reads the work first and then
-        // sees the result. Without narration, behave like before and open
-        // the pane immediately so the canned reply renders into it.
+        // the pane stays in its current state (chat-only OR a previously-
+        // rendered dashboard) while the two tool-reasoning rows play in
+        // the chat. Only AFTER the Build Dashboard step lands do we flip
+        // dashboard state to the prelude and open / repaint the pane —
+        // otherwise an already-open pane would jump straight into the
+        // paint-in animation the moment the chip fires, hiding the
+        // previous content before the narration even starts. Without
+        // narration, behave like before: open the pane immediately and
+        // set the prelude inline.
         const shouldNarrateDataPipeline =
           suggestion.title !== undefined &&
           suggestion.title in DATA_PIPELINE_ARGS;
 
-        if (!shouldNarrateDataPipeline) {
-          onOpenApp();
-        }
-
-        // Chips with a `prelude` get a two-stage transition: first flip
-        // dashboard to the paint-in shape (mode: "building" for the
-        // aggregate dashboard, mode: "buildingProfile" for the person
-        // profile), then ~1.3s later fall through to the normal
-        // `hardcoded.dashboard` patch which reveals the real view.
-        // Without the intermediate state the panel jumps straight from
-        // chat-only to a fully-rendered dashboard, which reads as canned.
-        //
-        // Setting the prelude here (before the pane opens for narrating
-        // chips) is intentional: the Dashboard component only mounts when
-        // mode === "app", so the paint-in animation can't start until the
-        // pane opens. By the time it does, agent.state.dashboard is
-        // already on the prelude shape and the BuildingView / Building-
-        // ProfileView mounts straight into the skeleton phase.
-        if (hardcoded.prelude) {
+        // Apply the prelude (paint-in dashboard state) — seeds issues if
+        // needed, then patches `dashboard` to the building / buildingProfile
+        // shape. Called inline below at the right moment depending on
+        // whether the chip narrates.
+        const applyPrelude = () => {
+          if (!hardcoded.prelude) return;
           const current = (agent.state as Record<string, unknown>) ?? {};
           agent.setState({
             ...current,
-            // Seed issues here too — the paint-in views read issues for
-            // any inline derivation (stats counts on the person profile
-            // header, etc.) so the cards show real numbers the instant
-            // they reach the rendered phase.
-            issues: Array.isArray(current.issues) && current.issues.length > 0
-              ? current.issues
-              : SEED_ISSUES,
+            issues:
+              Array.isArray(current.issues) && current.issues.length > 0
+                ? current.issues
+                : SEED_ISSUES,
             dashboard: hardcoded.prelude,
           });
+        };
+
+        if (!shouldNarrateDataPipeline) {
+          // Non-narrating chips (Reset, Urgent right now, etc.): open the
+          // pane right away and set the prelude inline — the canned reply
+          // renders into the dashboard as it appears.
+          onOpenApp();
+          applyPrelude();
         }
 
         // Simulate agent latency. Without this gap the assistant message
@@ -439,12 +435,14 @@ function ChatWired({
         // is on the other end. Build-dashboard / Sarah's workload swap
         // the plain sleep for a two-step Get Data → Build Dashboard
         // reasoning narration that lands in the chat as ToolReasoning
-        // rows. The pane opens AFTER the narration completes; the paint-
-        // in animation budget (~1.3s) is then awaited so the reveal plays
-        // fully before the final `hardcoded.dashboard` setState below
-        // flips the dashboard out of the prelude state.
+        // rows. The prelude state-flip + pane-open both happen AFTER the
+        // narration completes; the paint-in animation budget (~1.3s) is
+        // then awaited so the reveal plays fully before the final
+        // `hardcoded.dashboard` setState below flips the dashboard out of
+        // the prelude state.
         if (shouldNarrateDataPipeline && suggestion.title) {
           await narrateDataPipeline(suggestion.title);
+          applyPrelude();
           onOpenApp();
           if (hardcoded.prelude) {
             await new Promise<void>((resolve) => setTimeout(resolve, 1300));
