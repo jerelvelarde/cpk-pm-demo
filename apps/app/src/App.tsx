@@ -183,9 +183,21 @@ interface ChatWiredProps {
   // the assistant reply streams in. Without it, users see the canned text
   // but the dashboard never reveals itself.
   onOpenApp: () => void;
+  // Called when a thread becomes "used" — i.e. the user has sent a message
+  // or fired a hardcoded chip. HomePage records this in
+  // localActiveThreads so the drawer can synthesize a row for client-only
+  // threads (ADK hardcoded chips never call runAgent, so the Intelligence
+  // platform never creates a server-side row — without local tracking the
+  // Designer thread is invisible in the drawer).
+  onThreadTouched: () => void;
 }
 
-function ChatWired({ agentId, onAgentChange, onOpenApp }: ChatWiredProps) {
+function ChatWired({
+  agentId,
+  onAgentChange,
+  onOpenApp,
+  onThreadTouched,
+}: ChatWiredProps) {
   // Inside CopilotChatConfigurationProvider so useConfigureSuggestions and
   // useFrontendTool resolve against the active chat config's agentId. Hoisted
   // up to HomePage caused suggestions to register before the chat config was
@@ -236,6 +248,12 @@ function ChatWired({ agentId, onAgentChange, onOpenApp }: ChatWiredProps) {
       const hardcoded =
         suggestion.title && HARDCODED_DASHBOARD_RESPONSES[suggestion.title];
       if (hardcoded) {
+        // Mark the thread as touched so the drawer renders a row for it.
+        // Hardcoded ADK chips never call runAgent, so the Intelligence
+        // platform never persists a thread row — without this notification
+        // the new Designer conversation would be invisible in the drawer.
+        onThreadTouched();
+
         // User message first so the bubble shows what was asked.
         agent.addMessage({
           id: messageId,
@@ -357,6 +375,12 @@ function ChatWired({ agentId, onAgentChange, onOpenApp }: ChatWiredProps) {
         return;
       }
 
+      // Mark thread as touched up front so the drawer row appears the
+      // moment the user clicks send — without this we wait on the server's
+      // thread upsert (which lands a few hundred ms later in the WS push)
+      // before the row materializes.
+      onThreadTouched();
+
       agent.addMessage({
         id: messageId,
         role: "user",
@@ -370,7 +394,7 @@ function ChatWired({ agentId, onAgentChange, onOpenApp }: ChatWiredProps) {
         console.error("[ChatWired] runAgent failed after suggestion", err);
       }
     },
-    [agent, copilotkit, onOpenApp],
+    [agent, copilotkit, onOpenApp, onThreadTouched],
   );
 
   // Function-component input slot. We need closure access to the bound
@@ -509,6 +533,36 @@ function HomePage() {
   // imperatively.
   const [layoutMode, setLayoutMode] = useState<ExampleLayoutMode>("chat");
 
+  // Local record of (threadId → agentId) pairs the user has actually used
+  // this session. Hardcoded ADK chips (Build the dashboard, Sarah's
+  // workload, etc.) never call runAgent, so the Intelligence platform
+  // never persists a thread row for them — meaning the drawer would never
+  // see those conversations in the server-driven thread list. Tracking
+  // them locally lets the drawer synthesize a row immediately on chip
+  // click (with the rebrand effect then morphing the placeholder into
+  // "Build dashboard from backlog"), and survives an agent swap because
+  // the entry is keyed by id, not by active-state.
+  const [localActiveThreads, setLocalActiveThreads] = useState<
+    Map<string, { agentId: AgentId; updatedAt: string }>
+  >(() => new Map());
+
+  // Callback wired through ChatWired → suggestion handler. Fires on both
+  // hardcoded ADK chips and on regular runAgent flows; for runAgent flows
+  // it's redundant once the server upsert lands, but it makes the row
+  // appear instantly instead of waiting on the WS push.
+  const handleThreadTouched = useCallback(() => {
+    if (!threadId) return;
+    setLocalActiveThreads((m) => {
+      if (m.has(threadId)) return m;
+      const next = new Map(m);
+      next.set(threadId, {
+        agentId,
+        updatedAt: new Date().toISOString(),
+      });
+      return next;
+    });
+  }, [threadId, agentId]);
+
   // Called by ThreadAutoRotate when a locked-thread RUN_ERROR comes in.
   // Generating a fresh UUID (vs. setting undefined) guarantees CopilotChat's
   // internal "remember last threadId" caching can't drift us back onto the
@@ -541,6 +595,7 @@ function HomePage() {
             if (nextAgentId) setAgentId(nextAgentId);
           }}
           onNewThread={handleNewThread}
+          localThreadEntries={localActiveThreads}
         />
         <div className={styles.mainPanel}>
           {/*
@@ -593,6 +648,7 @@ function HomePage() {
                   // but the dashboard stays hidden and the chip looks
                   // broken.
                   onOpenApp={() => setLayoutMode("app")}
+                  onThreadTouched={handleThreadTouched}
                 />
               }
               // Agent picker drives the right pane. langgraph (Cowork) shows

@@ -36,6 +36,15 @@ export interface ThreadsDrawerProps {
    * UUID, resetting layout mode to "chat").
    */
   onNewThread?: () => void;
+  /**
+   * Threads the user has "touched" this session that may or may not exist
+   * on the Intelligence platform yet (or ever — hardcoded ADK chips skip
+   * runAgent entirely). The drawer merges these with the server lists and
+   * synthesizes a placeholder row for any id not already covered, so the
+   * Dashboard Designer "Build the dashboard" flow shows up in the drawer
+   * immediately on chip click instead of being invisible.
+   */
+  localThreadEntries?: Map<string, { agentId: AgentId; updatedAt: string }>;
 }
 
 interface DrawerThread {
@@ -89,6 +98,7 @@ export default function ThreadsDrawer({
   threadId,
   onThreadChange,
   onNewThread,
+  localThreadEntries,
 }: ThreadsDrawerProps) {
   // Use `onNewThread` if the parent provided one (it does the full
   // new-conversation reset). Fall back to the older onThreadChange(undefined)
@@ -123,6 +133,17 @@ export default function ThreadsDrawer({
     limit: 20,
   });
 
+  // Threads whose null/"Untitled" server name has been swapped client-side
+  // for an agent-specific default ("Plan Backlog from image", "Build
+  // dashboard from backlog"). Hoisted above the `threads` useMemo so the
+  // filter below can keep these rows visible after they stop being the
+  // active thread — without this, swapping agents (which rotates threadId)
+  // would drop the previous conversation from the drawer because the
+  // server still has name === null and our `t.name !== null` gate fails.
+  const [rebrandedTitleIds, setRebrandedTitleIds] = useState<
+    Record<string, true>
+  >({});
+
   const threads = useMemo<DrawerThread[]>(() => {
     // Intelligence platform's WS join code is per-user, not per-(user,agent):
     // both `useThreads({agentId: "langgraph"})` and `useThreads({agentId:
@@ -154,8 +175,28 @@ export default function ThreadsDrawer({
         ...(t.lastRunAt !== undefined ? { lastRunAt: t.lastRunAt } : {}),
       });
     }
+    // Synthesize rows for client-only threads — hardcoded ADK chips never
+    // call runAgent, so the Intelligence platform never persists a row.
+    // Without this the Dashboard Designer "Build the dashboard" flow is
+    // invisible in the drawer even though the conversation is live in the
+    // chat panel. We treat these synthesized rows as name=null so they
+    // flow through the rebrand pipeline → agent-specific default title.
+    if (localThreadEntries) {
+      for (const [id, entry] of localThreadEntries) {
+        if (seen.has(id)) continue;
+        seen.add(id);
+        merged.push({
+          id,
+          agentId: entry.agentId,
+          name: null,
+          archived: false,
+          updatedAt: entry.updatedAt,
+        });
+      }
+    }
     // Drawer shows a thread iff it's the currently active one OR it has a
-    // non-null name (so real, titled threads from history stay visible).
+    // (real or client-rebranded) name, so real conversations from history
+    // stay visible while phantom rows drop out.
     //
     // Phantoms we exclude:
     //   - Agent-swap / New-thread minted UUIDs that never received a run
@@ -171,8 +212,15 @@ export default function ThreadsDrawer({
     // HomePage pre-mints threadId on mount, so the user's actual active
     // thread always passes via `t.id === threadId` even before the first
     // message lands.
+    //
+    // `rebrandedTitleIds[t.id]` keeps client-side-rebranded threads in
+    // view after they stop being active (e.g. user sends "Plan next
+    // sprint" on Cowork → 700ms rebrand fires → user swaps to Designer:
+    // the Cowork row should stay in the list because the user "named"
+    // it implicitly by sending a message, even though the server still
+    // has name === null).
     const filtered = merged.filter(
-      (t) => t.id === threadId || t.name !== null,
+      (t) => t.id === threadId || t.name !== null || rebrandedTitleIds[t.id],
     );
     filtered.sort((a, b) => {
       const aTs = new Date(a.lastRunAt ?? a.updatedAt).getTime();
@@ -180,7 +228,13 @@ export default function ThreadsDrawer({
       return bTs - aTs;
     });
     return filtered;
-  }, [langgraphResult.threads, adkResult.threads, threadId]);
+  }, [
+    langgraphResult.threads,
+    adkResult.threads,
+    threadId,
+    rebrandedTitleIds,
+    localThreadEntries,
+  ]);
 
   const resultFor = useCallback(
     (id: AgentId) => (id === "adk" ? adkResult : langgraphResult),
@@ -253,12 +307,9 @@ export default function ThreadsDrawer({
   const [revealedTitleIds, setRevealedTitleIds] = useState<
     Record<string, true>
   >({});
-  // Threads whose "Untitled" platform fallback has already been swapped for
-  // the agent-specific default title. Keyed by thread id so the same thread
-  // doesn't re-trigger the rebrand on every poll.
-  const [rebrandedTitleIds, setRebrandedTitleIds] = useState<
-    Record<string, true>
-  >({});
+  // `rebrandedTitleIds` is declared above the `threads` useMemo so the
+  // drawer's filter can keep client-side-rebranded rows visible after
+  // they stop being the active thread. Only the timeouts ref lives here.
   const rebrandTimeoutsRef = useRef<Map<string, number>>(new Map());
 
   useEffect(() => {
