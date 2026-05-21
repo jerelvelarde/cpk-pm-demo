@@ -24,8 +24,19 @@ export type DashboardLayout = "overview" | "by_assignee" | "by_priority";
  * demo response — a profile-style page focused on a single assignee with
  * quick stats, an AI insight card, and the person's tickets, all entering
  * with a stagger animation.
+ *
+ * `building` and `buildingProfile` are paint-in preludes used by the chip
+ * handler in App.tsx: `building` paints in the aggregate dashboard
+ * structure before the chip flips to `stats` (or default); `buildingProfile`
+ * paints in the person-profile structure before the chip flips to
+ * `personProfile`. They live a beat (~1.3s) so the paint-in animation
+ * completes, then transition seamlessly to the rendered view.
  */
-export type DashboardMode = "stats" | "personProfile";
+export type DashboardMode =
+  | "stats"
+  | "personProfile"
+  | "building"
+  | "buildingProfile";
 
 export interface DashboardState {
   filter?: DashboardFilter;

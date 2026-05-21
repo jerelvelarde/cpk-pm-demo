@@ -1,18 +1,30 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
-import { Check, Eye, FileText, ListChecks, PenLine } from "lucide-react";
+import {
+  Check,
+  Eye,
+  FileText,
+  ListChecks,
+  PenLine,
+  Sparkles,
+} from "lucide-react";
 
 /**
  * Animated "agent step in progress" card. Used by the sprint-planning demo to
  * narrate the cycle: reading_image -> transcribing -> planning_tickets ->
- * writing_tickets. Each card mounts in "in_progress" state with a spinner, then
- * transitions to a green check after IN_PROGRESS_MS so the four steps animate
- * sequentially as the fixture emits them.
+ * writing_tickets -> complete. Each card mounts in "in_progress" state with a
+ * spinner, then transitions to a green check after IN_PROGRESS_MS so the steps
+ * animate sequentially as the fixture emits them.
  *
  * Time-based (not stream-status-based) so the animation plays the same
  * regardless of how fast aimock streams the tool-call args.
+ *
+ * The final `complete` step is special: when it transitions to "done" it
+ * broadcasts a module-level signal that tells all *previous* step cards to
+ * collapse (height + opacity to 0). Result: the four narration cards visually
+ * fold into the single "Analysis and breakdown complete" summary card.
  */
 export const AgentProgressProps = z.object({
   step: z
@@ -21,9 +33,10 @@ export const AgentProgressProps = z.object({
       "transcribing",
       "planning_tickets",
       "writing_tickets",
+      "complete",
     ])
     .describe(
-      "Which agent step this card represents. Drives the icon and label.",
+      "Which agent step this card represents. Drives the icon and label. The terminal 'complete' step also triggers prior step cards to collapse.",
     ),
   detail: z
     .string()
@@ -36,6 +49,22 @@ export const AgentProgressProps = z.object({
 export type AgentProgressArgs = z.infer<typeof AgentProgressProps>;
 
 const IN_PROGRESS_MS = 900;
+const COLLAPSE_MS = 420;
+
+// Module-level pub/sub so the `complete` step card can tell every previously
+// mounted step card to collapse, without needing a shared React context. Each
+// non-`complete` card subscribes on mount; the `complete` card fires the
+// signal when it flips to "done".
+const collapseSubscribers = new Set<() => void>();
+function broadcastCollapse() {
+  for (const fn of collapseSubscribers) fn();
+}
+function subscribeCollapse(fn: () => void) {
+  collapseSubscribers.add(fn);
+  return () => {
+    collapseSubscribers.delete(fn);
+  };
+}
 
 const STEP_META: Record<
   AgentProgressArgs["step"],
@@ -65,16 +94,37 @@ const STEP_META: Record<
     done: "Updated board",
     Icon: PenLine,
   },
+  complete: {
+    inProgress: "Wrapping up…",
+    done: "Analysis and breakdown complete",
+    Icon: Sparkles,
+  },
 };
 
 export function AgentProgress({ step, detail }: AgentProgressArgs) {
   const [phase, setPhase] = useState<"in_progress" | "done">("in_progress");
+  const [collapsed, setCollapsed] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
   const meta = STEP_META[step];
+  const isComplete = step === "complete";
 
   useEffect(() => {
     const t = setTimeout(() => setPhase("done"), IN_PROGRESS_MS);
     return () => clearTimeout(t);
   }, []);
+
+  // Non-terminal step cards listen for the collapse broadcast.
+  useEffect(() => {
+    if (isComplete) return;
+    return subscribeCollapse(() => setCollapsed(true));
+  }, [isComplete]);
+
+  // The terminal "complete" card fires the broadcast once it lands on "done".
+  useEffect(() => {
+    if (!isComplete) return;
+    if (phase !== "done") return;
+    broadcastCollapse();
+  }, [isComplete, phase]);
 
   if (!meta) return null;
   const Icon = meta.Icon;
@@ -82,20 +132,32 @@ export function AgentProgress({ step, detail }: AgentProgressArgs) {
 
   return (
     <div
+      ref={cardRef}
       className="max-w-md w-full"
       style={{
         background: "rgba(255, 255, 255, 0.65)",
         border: "2px solid #ffffff",
         borderRadius: 8,
-        padding: "8px 12px",
-        marginBottom: 6,
+        padding: collapsed ? "0 12px" : "8px 12px",
+        marginBottom: collapsed ? 0 : 6,
         display: "flex",
         alignItems: "center",
         gap: 10,
         backdropFilter: "blur(6px)",
         WebkitBackdropFilter: "blur(6px)",
-        boxShadow: "0px 1px 3px 0px rgba(1, 5, 7, 0.08)",
+        boxShadow: collapsed
+          ? "none"
+          : "0px 1px 3px 0px rgba(1, 5, 7, 0.08)",
+        // Cards we just want to disappear collapse height + opacity together,
+        // pulling the summary card up into the freed space.
+        maxHeight: collapsed ? 0 : 200,
+        opacity: collapsed ? 0 : 1,
+        overflow: "hidden",
+        transform: collapsed ? "translateY(-4px)" : "translateY(0)",
+        transition: `max-height ${COLLAPSE_MS}ms ease, opacity ${COLLAPSE_MS}ms ease, margin ${COLLAPSE_MS}ms ease, padding ${COLLAPSE_MS}ms ease, transform ${COLLAPSE_MS}ms ease`,
+        pointerEvents: collapsed ? "none" : undefined,
       }}
+      aria-hidden={collapsed || undefined}
     >
       <style>{`
         @keyframes agentProgressSpin {

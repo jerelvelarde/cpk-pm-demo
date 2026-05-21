@@ -16,8 +16,26 @@ import {
 } from "@/components/pm-board/types";
 import type { DashboardFilter, DashboardState } from "./types";
 import { SEED_ISSUES } from "./seed-issues";
-import { PersonProfileView } from "./person-profile";
-import { AlertTriangle, Layers, RotateCcw, User, Users } from "lucide-react";
+import {
+  InsightCard,
+  PersonProfileView,
+  ProfileHeader,
+  ROLES,
+  SectionTitle,
+  StatCard,
+  personProfileStyles,
+} from "./person-profile";
+import { PaintFrame, PaintSurface } from "@/components/paint/PaintFrame";
+import {
+  Activity,
+  AlertTriangle,
+  CheckCircle2,
+  Layers,
+  RotateCcw,
+  Target,
+  User,
+  Users,
+} from "lucide-react";
 
 const STATUS_COLOR: Record<IssueStatus, string> = {
   Backlog: "#838389",
@@ -69,6 +87,23 @@ export function Dashboard() {
     !!filter.assignee || !!filter.priority || !!filter.status ||
     (Array.isArray(filter.labels) && filter.labels.length > 0);
 
+  // buildingProfile mode paints in the person-profile shape (header /
+  // stats / insight / section title / ticket rows) before the chip flips
+  // to personProfile. Checked BEFORE personProfile so the chip's two-step
+  // setState (prelude → final) lands on the paint-in view first. Lives a
+  // beat (~1.3s timed in App.tsx) — same budget as the aggregate
+  // "building" view below — then transitions cleanly to the real
+  // PersonProfileView (same children, same layout, no visible jump).
+  if (dashboard.mode === "buildingProfile" && dashboard.person) {
+    return (
+      <BuildingProfileView
+        person={dashboard.person}
+        issues={issues}
+        insight={dashboard.insight}
+      />
+    );
+  }
+
   // personProfile mode short-circuits the aggregate dashboard. The
   // `key={dashboard.person}` on PersonProfileView re-mounts the component
   // when the focused person changes so the stagger animation re-runs
@@ -80,6 +115,30 @@ export function Dashboard() {
         person={dashboard.person}
         issues={issues}
         insight={dashboard.insight}
+      />
+    );
+  }
+
+  // "Build the dashboard" chip drops state.dashboard.mode = "building" for a
+  // beat before clearing it to {}. We paint the *real* dashboard subcomponents
+  // through the skeleton → wireframe → rendered phase animation so the demo
+  // reads as "the agent is designing the UI piece by piece" rather than the
+  // pane popping in fully formed. Derived data flows through unchanged — by
+  // the time the paint completes the cards show real numbers, then mode flips
+  // and the un-wrapped Dashboard tree below takes over without visible jump.
+  if (dashboard.mode === "building") {
+    return (
+      <BuildingView
+        total={issues.length}
+        filteredCount={filtered.length}
+        focus={dashboard.focus}
+        filter={filter}
+        hasIssues={hasIssues}
+        hasFilter={hasFilter}
+        stats={stats}
+        byStatus={byStatus}
+        byPriority={byPriority}
+        byAssignee={byAssignee}
       />
     );
   }
@@ -678,6 +737,268 @@ function AssigneeBars({ data }: { data: { key: string; value: number }[] }) {
           </div>
         );
       })}
+    </div>
+  );
+}
+
+// ------------------------------------------------------------ building state
+
+/**
+ * "Creating the dashboard" paint-in view. Shown while
+ * state.dashboard.mode === "building". Each meaningful node is wrapped in
+ * a <PaintFrame> that walks skeleton → wireframe → rendered, so the demo
+ * reads as "agent painting the UI piece by piece" rather than the panel
+ * popping in. The PaintFrames hold the *real* dashboard subcomponents,
+ * so by the time the last frame reaches rendered the dashboard shows
+ * real numbers — then the chip handler flips mode to {} and the
+ * un-wrapped Dashboard tree continues without a visible jump.
+ *
+ * Stagger budget: 8 paint frames × 130 ms = ~1.04 s last-start + ~300 ms
+ * skeleton + wireframe = ~1.34 s total, fitting just inside the 1.3 s
+ * chip-mode timer in App.tsx (the un-wrapped re-render lands within a
+ * frame or two of the final paint).
+ */
+function BuildingView({
+  total,
+  filteredCount,
+  focus,
+  filter,
+  hasIssues,
+  hasFilter,
+  stats,
+  byStatus,
+  byPriority,
+  byAssignee,
+}: {
+  total: number;
+  filteredCount: number;
+  focus?: string;
+  filter: DashboardFilter;
+  hasIssues: boolean;
+  hasFilter: boolean;
+  stats: {
+    total: number;
+    inProgress: number;
+    urgent: number;
+    unassigned: number;
+  };
+  byStatus: { key: string; value: number }[];
+  byPriority: { key: string; value: number }[];
+  byAssignee: { key: string; value: number }[];
+}) {
+  // Layout container mirrors the un-wrapped Dashboard render below so the
+  // mode flip lands the children in the exact same grid positions.
+  return (
+    <div
+      className="paint-light"
+      style={{
+        position: "relative",
+        zIndex: 1,
+        height: "100%",
+        padding: 20,
+        overflow: "auto",
+        display: "flex",
+        flexDirection: "column",
+        gap: 16,
+      }}
+    >
+      <PaintSurface
+        theme="none"
+        autoStagger
+        staggerStep={130}
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 16,
+        }}
+      >
+        <PaintFrame component="Card" id="header">
+          <DashboardHeader
+            total={total}
+            filteredCount={filteredCount}
+            focus={focus}
+            filter={filter}
+            onReset={() => {
+              /* paint-in is non-interactive */
+            }}
+            hasIssues={hasIssues}
+          />
+        </PaintFrame>
+
+        {hasIssues && (
+          <>
+            <PaintFrame component="Card" id="stats-row">
+              <StatsRow stats={stats} />
+            </PaintFrame>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: 16,
+              }}
+            >
+              <PaintFrame component="Card" id="chart-status">
+                <ChartCard
+                  title="By status"
+                  subtitle={hasFilter ? "Within current filter" : "Full backlog"}
+                >
+                  <Donut
+                    data={byStatus}
+                    colorFor={(k) => STATUS_COLOR[k as IssueStatus]}
+                  />
+                </ChartCard>
+              </PaintFrame>
+
+              <PaintFrame component="Card" id="chart-priority">
+                <ChartCard
+                  title="By priority"
+                  subtitle={
+                    hasFilter
+                      ? "Within current filter"
+                      : "Urgent first — unblockers"
+                  }
+                >
+                  <PriorityBars data={byPriority} />
+                </ChartCard>
+              </PaintFrame>
+            </div>
+
+            <PaintFrame component="Card" id="chart-assignee">
+              <ChartCard title="By assignee" subtitle="Open work per person">
+                <AssigneeBars data={byAssignee} />
+              </ChartCard>
+            </PaintFrame>
+          </>
+        )}
+      </PaintSurface>
+    </div>
+  );
+}
+
+/**
+ * Paint-in prelude for "Sarah's workload" (and other person-profile
+ * chips down the line). Mirrors PersonProfileView's structure — header,
+ * 4-up stats row, insight card, section title, three placeholder ticket
+ * rows — wrapped in <PaintFrame>s so the demo reads as "the agent is
+ * composing the profile" before the real PersonProfileView mounts.
+ *
+ * Real data flows through where it's known (avatar accent, focus count,
+ * insight text). The ticket rows are placeholder blocks because the real
+ * stagger animation that fires when PersonProfileView mounts is what
+ * sells the "tickets dropping in" — duplicating it here would just
+ * compete with the paint-in phase visuals.
+ *
+ * `.paint-light` (on the outer wrapper) flips the dashed indigo border
+ * + label tag for the light dashboard pane, AND strips the wrapper's
+ * own padding / background / border at the rendered phase so the
+ * inner `personProfileStyles.headerCard` / `.statCard` / `.insightCard`
+ * styling owns the visual (avoids the double-card look).
+ *
+ * Stagger budget: 4 paint frames at 130ms step + 140 + 160 = ~820ms,
+ * fits inside the 1.3s chip-mode timer in App.tsx.
+ */
+function BuildingProfileView({
+  person,
+  issues,
+  insight,
+}: {
+  person: string;
+  issues: Issue[];
+  insight?: string;
+}) {
+  const personIssues = useMemo(
+    () => issues.filter((i) => i.assignee === person),
+    [issues, person],
+  );
+
+  const stats = useMemo(() => {
+    const total = personIssues.length;
+    const inProgress = personIssues.filter((i) => i.status === "In Progress")
+      .length;
+    const urgent = personIssues.filter(
+      (i) => i.priority === "Urgent" || i.priority === "High",
+    ).length;
+    const completed = personIssues.filter((i) => i.status === "Done").length;
+    return { total, inProgress, urgent, completed };
+  }, [personIssues]);
+
+  const accent = ASSIGNEE_COLORS[person] ?? "#bec2ff";
+  const role = ROLES[person] ?? "Product Engineer";
+
+  const fallbackInsight =
+    insight ??
+    `${person} is balancing ${stats.inProgress} active ticket${
+      stats.inProgress === 1 ? "" : "s"
+    } with ${stats.urgent} marked urgent or high.`;
+
+  // Outer container mirrors PersonProfileView's `.root` so the layout
+  // doesn't shift on the buildingProfile → personProfile flip. PaintSurface
+  // theme="none" keeps the existing background; paint-light flips the tag
+  // / wireframe colors to match the dashboard's light gradient.
+  return (
+    <div className={`paint-light ${personProfileStyles.root}`}>
+      <PaintSurface
+        theme="none"
+        autoStagger
+        staggerStep={130}
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 14,
+        }}
+      >
+        <PaintFrame component="Card" id="profile-header">
+          <ProfileHeader
+            person={person}
+            role={role}
+            accent={accent}
+            focusCount={stats.total}
+            styleIndex={0}
+          />
+        </PaintFrame>
+
+        <PaintFrame component="Card" id="profile-stats">
+          <div className={personProfileStyles.statsRow}>
+            <StatCard
+              label="Total"
+              value={stats.total}
+              Icon={Target}
+              tone="#010507"
+              styleIndex={1}
+            />
+            <StatCard
+              label="In progress"
+              value={stats.inProgress}
+              Icon={Activity}
+              tone="#189370"
+              styleIndex={2}
+            />
+            <StatCard
+              label="Urgent / High"
+              value={stats.urgent}
+              Icon={AlertTriangle}
+              tone="#fa5f67"
+              styleIndex={3}
+            />
+            <StatCard
+              label="Shipped"
+              value={stats.completed}
+              Icon={CheckCircle2}
+              tone="#57575b"
+              styleIndex={4}
+            />
+          </div>
+        </PaintFrame>
+
+        <PaintFrame component="Card" id="profile-insight">
+          <InsightCard accent={accent} text={fallbackInsight} styleIndex={5} />
+        </PaintFrame>
+
+        <PaintFrame component="Text" id="profile-section" variant="title">
+          <SectionTitle styleIndex={6}>Open work</SectionTitle>
+        </PaintFrame>
+      </PaintSurface>
     </div>
   );
 }

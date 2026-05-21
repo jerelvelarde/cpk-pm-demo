@@ -11,15 +11,22 @@ import {
   Search,
   Trash2,
 } from "lucide-react";
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useThreads } from "@copilotkit/react-core/v2";
+import { type AgentId } from "@/components/agent-selector";
 import styles from "./threads-drawer.module.css";
 
 export interface ThreadsDrawerProps {
-  agentId: string;
   threadId: string | undefined;
-  onThreadChange: (threadId: string | undefined) => void;
+  /**
+   * Fires when the user picks a thread (or clears the selection). Receives
+   * the thread's owning `agentId` so the parent can flip the active agent
+   * to match — threads are partitioned per-agent on the Intelligence
+   * platform, so opening a thread that belongs to a different agent must
+   * also switch the agent.
+   */
+  onThreadChange: (threadId: string | undefined, agentId?: AgentId) => void;
   /**
    * Called when the user explicitly clicks one of the "New thread" buttons
    * (the collapsed-drawer "+" or the in-drawer header button). Distinct
@@ -29,20 +36,50 @@ export interface ThreadsDrawerProps {
    * UUID, resetting layout mode to "chat").
    */
   onNewThread?: () => void;
+  /**
+   * Threads the user has "touched" this session that may or may not exist
+   * on the Intelligence platform yet (or ever — hardcoded ADK chips skip
+   * runAgent entirely). The drawer merges these with the server lists and
+   * synthesizes a placeholder row for any id not already covered, so the
+   * Dashboard Designer "Build the dashboard" flow shows up in the drawer
+   * immediately on chip click instead of being invisible.
+   */
+  localThreadEntries?: Map<string, { agentId: AgentId; updatedAt: string }>;
 }
 
 interface DrawerThread {
   id: string;
+  agentId: AgentId;
   name: string | null;
   updatedAt: string;
   archived: boolean;
   lastRunAt?: string;
 }
 
+const AGENT_LABELS: Record<AgentId, string> = {
+  langgraph: "Cowork",
+  adk: "Dashboard Designer",
+  mastra: "Engineering Agent",
+};
+
 const THREAD_ENTRY_ANIMATION_MS = 420;
 const TITLE_ANIMATION_MS = 360;
 const UNTITLED_THREAD_LABEL = "New thread";
 const RUNTIME_BASE_PATH = "/api/copilotkit";
+
+// The BFF's thread-name handler writes this string when LLM-driven title
+// generation fails (aimock has no fixture for the title prompt, so all three
+// attempts return invalid). Detect it on the client and swap in an
+// agent-flavoured default after a short beat so the drawer never shows the
+// raw fallback to demo viewers.
+const PLATFORM_FALLBACK_TITLE = "Untitled";
+const TITLE_REBRAND_DELAY_MS = 700;
+
+const AGENT_DEFAULT_TITLES: Record<AgentId, string> = {
+  langgraph: "Plan Backlog from image",
+  adk: "Build dashboard from backlog",
+  mastra: "Engineering session",
+};
 
 function formatThreadTimestamp(updatedAt: string): string {
   const timestamp = new Date(updatedAt);
@@ -58,10 +95,10 @@ function cx(...classNames: Array<string | false | undefined>): string {
 }
 
 export default function ThreadsDrawer({
-  agentId,
   threadId,
   onThreadChange,
   onNewThread,
+  localThreadEntries,
 }: ThreadsDrawerProps) {
   // Use `onNewThread` if the parent provided one (it does the full
   // new-conversation reset). Fall back to the older onThreadChange(undefined)
@@ -72,6 +109,7 @@ export default function ThreadsDrawer({
   const [isOpen, setIsOpen] = useState(true);
   const [pendingDelete, setPendingDelete] = useState<{
     id: string;
+    agentId: AgentId;
     title: string;
   } | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -79,30 +117,165 @@ export default function ThreadsDrawer({
   const [renameValue, setRenameValue] = useState("");
   const deleteTriggerRef = useRef<HTMLElement | null>(null);
 
-  const {
-    threads,
-    archiveThread,
-    deleteThread,
-    renameThread,
-    error,
-    isLoading,
-    hasMoreThreads,
-    isFetchingMoreThreads,
-    fetchMoreThreads,
-  } = useThreads({
-    agentId,
+  // Threads on the Intelligence platform are partitioned by (userId, agentId)
+  // and `useThreads` only queries one partition per call. To present a single
+  // unified thread list across both agents, we open one store per agent and
+  // merge them client-side; each row carries its `agentId` so mutations are
+  // routed back to the correct store.
+  const langgraphResult = useThreads({
+    agentId: "langgraph",
+    includeArchived: showArchived,
+    limit: 20,
+  });
+  const adkResult = useThreads({
+    agentId: "adk",
     includeArchived: showArchived,
     limit: 20,
   });
 
+  // Threads whose null/"Untitled" server name has been swapped client-side
+  // for an agent-specific default ("Plan Backlog from image", "Build
+  // dashboard from backlog"). Hoisted above the `threads` useMemo so the
+  // filter below can keep these rows visible after they stop being the
+  // active thread — without this, swapping agents (which rotates threadId)
+  // would drop the previous conversation from the drawer because the
+  // server still has name === null and our `t.name !== null` gate fails.
+  const [rebrandedTitleIds, setRebrandedTitleIds] = useState<
+    Record<string, true>
+  >({});
+
+  const threads = useMemo<DrawerThread[]>(() => {
+    // Intelligence platform's WS join code is per-user, not per-(user,agent):
+    // both `useThreads({agentId: "langgraph"})` and `useThreads({agentId:
+    // "adk"})` get the same `joinCode` from /threads, subscribe to the same
+    // `user_meta:<joinCode>` Phoenix topic, and so a thread upsert pushed for
+    // *any* agent shows up in *both* stores. Without dedupe + agentId
+    // disambiguation, a single Cowork thread renders twice in the drawer
+    // (once as "Cowork", once as "Dashboard Designer") immediately after the
+    // first message lands.
+    //
+    // Each thread carries its real partition in `t.agentId` (forwarded from
+    // the REST response and the WS payload), so dedupe by id and trust the
+    // thread's own agentId instead of the partition the hook was scoped to.
+    const seen = new Set<string>();
+    const merged: DrawerThread[] = [];
+    for (const t of [...langgraphResult.threads, ...adkResult.threads]) {
+      if (seen.has(t.id)) continue;
+      seen.add(t.id);
+      // Defensive: ignore threads with an agentId we don't know how to label
+      // (e.g. legacy "default" partition rows). They'd render with a broken
+      // agent badge and route mutations to the wrong store.
+      if (t.agentId !== "langgraph" && t.agentId !== "adk") continue;
+      merged.push({
+        id: t.id,
+        agentId: t.agentId as AgentId,
+        name: t.name,
+        archived: t.archived,
+        updatedAt: t.updatedAt,
+        ...(t.lastRunAt !== undefined ? { lastRunAt: t.lastRunAt } : {}),
+      });
+    }
+    // Synthesize rows for client-only threads — hardcoded ADK chips never
+    // call runAgent, so the Intelligence platform never persists a row.
+    // Without this the Dashboard Designer "Build the dashboard" flow is
+    // invisible in the drawer even though the conversation is live in the
+    // chat panel. We treat these synthesized rows as name=null so they
+    // flow through the rebrand pipeline → agent-specific default title.
+    if (localThreadEntries) {
+      for (const [id, entry] of localThreadEntries) {
+        if (seen.has(id)) continue;
+        seen.add(id);
+        merged.push({
+          id,
+          agentId: entry.agentId,
+          name: null,
+          archived: false,
+          updatedAt: entry.updatedAt,
+        });
+      }
+    }
+    // Drawer shows a thread iff it's the currently active one OR it has a
+    // (real or client-rebranded) name, so real conversations from history
+    // stay visible while phantom rows drop out.
+    //
+    // Phantoms we exclude:
+    //   - Agent-swap / New-thread minted UUIDs that never received a run
+    //     (no name, no lastRunAt) — purely client-side artifacts.
+    //   - Pre-existing rows from earlier sessions where BFF
+    //     thread-name-generation ran 3× ephemeral runs per user message
+    //     against random throwaway threadIds (now disabled at the runtime
+    //     via `generateThreadNames: false` in apps/bff/src/server.ts).
+    //     Those legacy rows still sit in the Intelligence platform DB
+    //     with a lastRunAt but no name — we deliberately do *not* let
+    //     `lastRunAt !== undefined` rescue them.
+    //
+    // HomePage pre-mints threadId on mount, so the user's actual active
+    // thread always passes via `t.id === threadId` even before the first
+    // message lands.
+    //
+    // `rebrandedTitleIds[t.id]` keeps client-side-rebranded threads in
+    // view after they stop being active (e.g. user sends "Plan next
+    // sprint" on Cowork → 700ms rebrand fires → user swaps to Designer:
+    // the Cowork row should stay in the list because the user "named"
+    // it implicitly by sending a message, even though the server still
+    // has name === null).
+    const filtered = merged.filter(
+      (t) => t.id === threadId || t.name !== null || rebrandedTitleIds[t.id],
+    );
+    filtered.sort((a, b) => {
+      const aTs = new Date(a.lastRunAt ?? a.updatedAt).getTime();
+      const bTs = new Date(b.lastRunAt ?? b.updatedAt).getTime();
+      return bTs - aTs;
+    });
+    return filtered;
+  }, [
+    langgraphResult.threads,
+    adkResult.threads,
+    threadId,
+    rebrandedTitleIds,
+    localThreadEntries,
+  ]);
+
+  const resultFor = useCallback(
+    (id: AgentId) => (id === "adk" ? adkResult : langgraphResult),
+    [langgraphResult, adkResult],
+  );
+
+  const error = langgraphResult.error ?? adkResult.error;
+  const isLoading = langgraphResult.isLoading || adkResult.isLoading;
+  const hasMoreThreads =
+    langgraphResult.hasMoreThreads || adkResult.hasMoreThreads;
+  const isFetchingMoreThreads =
+    langgraphResult.isFetchingMoreThreads || adkResult.isFetchingMoreThreads;
+  const fetchMoreThreads = useCallback(() => {
+    if (langgraphResult.hasMoreThreads) langgraphResult.fetchMoreThreads();
+    if (adkResult.hasMoreThreads) adkResult.fetchMoreThreads();
+  }, [langgraphResult, adkResult]);
+
+  const renameThread = useCallback(
+    (id: string, agentForThread: AgentId, name: string) =>
+      resultFor(agentForThread).renameThread(id, name),
+    [resultFor],
+  );
+  const archiveThread = useCallback(
+    (id: string, agentForThread: AgentId) =>
+      resultFor(agentForThread).archiveThread(id),
+    [resultFor],
+  );
+  const deleteThread = useCallback(
+    (id: string, agentForThread: AgentId) =>
+      resultFor(agentForThread).deleteThread(id),
+    [resultFor],
+  );
+
   const restoreThread = useCallback(
-    async (id: string) => {
+    async (id: string, agentForThread: AgentId) => {
       const response = await fetch(
         `${RUNTIME_BASE_PATH}/threads/${encodeURIComponent(id)}`,
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ agentId, archived: false }),
+          body: JSON.stringify({ agentId: agentForThread, archived: false }),
         },
       );
       if (!response.ok) {
@@ -111,7 +284,7 @@ export default function ThreadsDrawer({
         );
       }
     },
-    [agentId],
+    [],
   );
 
   const hasMountedRef = useRef(false);
@@ -134,6 +307,10 @@ export default function ThreadsDrawer({
   const [revealedTitleIds, setRevealedTitleIds] = useState<
     Record<string, true>
   >({});
+  // `rebrandedTitleIds` is declared above the `threads` useMemo so the
+  // drawer's filter can keep client-side-rebranded rows visible after
+  // they stop being the active thread. Only the timeouts ref lives here.
+  const rebrandTimeoutsRef = useRef<Map<string, number>>(new Map());
 
   useEffect(() => {
     return () => {
@@ -143,8 +320,58 @@ export default function ThreadsDrawer({
       for (const timeoutId of titleTimeoutsRef.current.values()) {
         window.clearTimeout(timeoutId);
       }
+      for (const timeoutId of rebrandTimeoutsRef.current.values()) {
+        window.clearTimeout(timeoutId);
+      }
     };
   }, []);
+
+  // Watch for threads that need their first real title and schedule a
+  // rebrand → agent-specific default. The 700ms delay lets the user clock
+  // the placeholder/"Untitled" state for a beat so the swap reads as the
+  // copilot retitling the thread, not a typo.
+  //
+  // Triggers on either:
+  //   - name === null: the new default now that BFF title-gen is off
+  //     (`generateThreadNames: false` in apps/bff/src/server.ts). The
+  //     Intelligence platform also doesn't return `lastRunAt` on threads,
+  //     so we can't gate on "has been run" — instead we rely on the
+  //     drawer's filter, which keeps null-named threads in view only when
+  //     they're the *active* thread. So a null name in `threads` here
+  //     already implies "the user's current conversation."
+  //   - name === "Untitled": the BFF's thread-name fallback (only happens
+  //     when generateThreadNames is left on; kept for legacy threads
+  //     carried over from before the flag flipped).
+  useEffect(() => {
+    if (isLoading) return;
+    for (const thread of threads) {
+      const needsRebrand =
+        thread.name === null || thread.name === PLATFORM_FALLBACK_TITLE;
+      if (!needsRebrand) continue;
+      if (rebrandedTitleIds[thread.id]) continue;
+      if (rebrandTimeoutsRef.current.has(thread.id)) continue;
+      const id = thread.id;
+      const tid = window.setTimeout(() => {
+        rebrandTimeoutsRef.current.delete(id);
+        // Replay the existing blur/translate reveal animation so the
+        // rebrand reads as the title "morphing" into its new shape.
+        setRevealedTitleIds((s) => ({ ...s, [id]: true }));
+        setRebrandedTitleIds((s) => ({ ...s, [id]: true }));
+        const existing = titleTimeoutsRef.current.get(id);
+        if (existing !== undefined) window.clearTimeout(existing);
+        const clearTid = window.setTimeout(() => {
+          setRevealedTitleIds((s) => {
+            const updated = { ...s };
+            delete updated[id];
+            return updated;
+          });
+          titleTimeoutsRef.current.delete(id);
+        }, TITLE_ANIMATION_MS);
+        titleTimeoutsRef.current.set(id, clearTid);
+      }, TITLE_REBRAND_DELAY_MS);
+      rebrandTimeoutsRef.current.set(id, tid);
+    }
+  }, [threads, isLoading, rebrandedTitleIds]);
 
   useEffect(() => {
     // Skip diffing while the store is refetching (e.g. after a filter change
@@ -195,7 +422,13 @@ export default function ThreadsDrawer({
         // onto the row's enter animation and produce a visible jitter.
         if (!previousNamesRef.current.has(t.id)) return false;
         const prev = previousNamesRef.current.get(t.id) ?? null;
-        return prev === null && t.name !== null;
+        if (prev !== null || t.name === null) return false;
+        // Skip the reveal for the platform's "Untitled" fallback — the
+        // rebrand effect below schedules its own reveal once the swap to
+        // the agent-specific default lands, so animating the bare "Untitled"
+        // first would just stack two blur reveals back-to-back.
+        if (t.name === PLATFORM_FALLBACK_TITLE) return false;
+        return true;
       })
       .map((t) => t.id);
 
@@ -229,11 +462,28 @@ export default function ThreadsDrawer({
     console.error("Unable to load threads", error);
   }
 
+  const resolveDisplayTitle = useCallback(
+    (thread: DrawerThread): string => {
+      // Once we've marked a thread as rebranded, swap in the agent-specific
+      // default regardless of whether the platform stored null or the
+      // "Untitled" fallback at the time of the swap.
+      if (rebrandedTitleIds[thread.id]) {
+        if (
+          thread.name === null ||
+          thread.name === PLATFORM_FALLBACK_TITLE
+        ) {
+          return AGENT_DEFAULT_TITLES[thread.agentId];
+        }
+      }
+      return thread.name ?? UNTITLED_THREAD_LABEL;
+    },
+    [rebrandedTitleIds],
+  );
+
   const filteredDisplayThreads: DrawerThread[] = searchQuery
-    ? displayThreads.filter((t) => {
-        const haystack = (t.name ?? UNTITLED_THREAD_LABEL).toLowerCase();
-        return haystack.includes(searchQuery.toLowerCase());
-      })
+    ? displayThreads.filter((t) =>
+        resolveDisplayTitle(t).toLowerCase().includes(searchQuery.toLowerCase()),
+      )
     : displayThreads;
 
   if (!isOpen) {
@@ -383,7 +633,7 @@ export default function ThreadsDrawer({
               <div className={styles.threadList}>
                 {filteredDisplayThreads.map((thread) => {
                   const hasTitle = thread.name !== null;
-                  const title = thread.name ?? UNTITLED_THREAD_LABEL;
+                  const title = resolveDisplayTitle(thread);
                   const isRenaming = renamingId === thread.id;
 
                   return (
@@ -400,7 +650,7 @@ export default function ThreadsDrawer({
                           thread.archived && styles.threadItemArchived,
                         )}
                         type="button"
-                        onClick={() => onThreadChange(thread.id)}
+                        onClick={() => onThreadChange(thread.id, thread.agentId)}
                       >
                         <span aria-hidden className={styles.threadAccent} />
                         <span className={styles.threadBody}>
@@ -413,9 +663,12 @@ export default function ThreadsDrawer({
                               onBlur={() => {
                                 const trimmed = renameValue.trim();
                                 if (trimmed && trimmed !== title) {
-                                  renameThread(thread.id, trimmed).catch(
-                                    (err: unknown) =>
-                                      console.error("Rename failed", err),
+                                  renameThread(
+                                    thread.id,
+                                    thread.agentId,
+                                    trimmed,
+                                  ).catch((err: unknown) =>
+                                    console.error("Rename failed", err),
                                   );
                                 }
                                 setRenamingId(null);
@@ -451,6 +704,8 @@ export default function ThreadsDrawer({
                             </span>
                           )}
                           <span className={styles.threadMeta}>
+                            {AGENT_LABELS[thread.agentId]}
+                            {" · "}
                             {formatThreadTimestamp(
                               thread.lastRunAt ?? thread.updatedAt,
                             )}
@@ -485,9 +740,14 @@ export default function ThreadsDrawer({
                             data-tooltip="Restore thread"
                             type="button"
                             onClick={() => {
-                              restoreThread(thread.id).catch((err: unknown) => {
-                                console.error("Unable to restore thread", err);
-                              });
+                              restoreThread(thread.id, thread.agentId).catch(
+                                (err: unknown) => {
+                                  console.error(
+                                    "Unable to restore thread",
+                                    err,
+                                  );
+                                },
+                              );
                             }}
                           >
                             <ArchiveRestore size={14} />
@@ -505,9 +765,14 @@ export default function ThreadsDrawer({
                             onClick={() => {
                               if (threadId === thread.id)
                                 onThreadChange(undefined);
-                              archiveThread(thread.id).catch((err: unknown) => {
-                                console.error("Unable to archive thread", err);
-                              });
+                              archiveThread(thread.id, thread.agentId).catch(
+                                (err: unknown) => {
+                                  console.error(
+                                    "Unable to archive thread",
+                                    err,
+                                  );
+                                },
+                              );
                             }}
                           >
                             <Archive size={14} />
@@ -525,7 +790,11 @@ export default function ThreadsDrawer({
                           type="button"
                           onClick={(e) => {
                             deleteTriggerRef.current = e.currentTarget;
-                            setPendingDelete({ id: thread.id, title });
+                            setPendingDelete({
+                              id: thread.id,
+                              agentId: thread.agentId,
+                              title,
+                            });
                           }}
                         >
                           <Trash2 size={14} />
@@ -580,10 +849,10 @@ export default function ThreadsDrawer({
           title="Delete thread"
           onCancel={closeDeleteDialog}
           onConfirm={() => {
-            const { id } = pendingDelete;
+            const { id, agentId: agentForThread } = pendingDelete;
             closeDeleteDialog();
             if (threadId === id) onThreadChange(undefined);
-            deleteThread(id).catch((err: unknown) => {
+            deleteThread(id, agentForThread).catch((err: unknown) => {
               console.error("Unable to delete thread", err);
             });
           }}

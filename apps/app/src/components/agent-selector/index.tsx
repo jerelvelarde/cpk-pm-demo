@@ -4,7 +4,7 @@ import { Check } from "lucide-react";
 import { useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
-export type AgentId = "langgraph" | "adk";
+export type AgentId = "langgraph" | "adk" | "mastra";
 
 interface AgentSelectorProps {
   agentId: AgentId;
@@ -14,6 +14,12 @@ interface AgentSelectorProps {
 const AGENTS: { id: AgentId; label: string; subtitle: string }[] = [
   { id: "langgraph", label: "Cowork", subtitle: "LangGraph" },
   { id: "adk", label: "Dashboard Designer", subtitle: "ADK" },
+  // Placeholder entry — no backend wired. Selecting it mints a fresh
+  // thread (via App.tsx onAgentChange) and lands in chat-only mode;
+  // actually sending a message will fail because no runtime is registered
+  // under `mastra`. Kept here so the picker shows a third option for
+  // demo/teaser purposes.
+  { id: "mastra", label: "Engineering Agent", subtitle: "Mastra" },
 ];
 
 /**

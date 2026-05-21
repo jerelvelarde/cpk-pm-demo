@@ -145,17 +145,38 @@ export const useGenerativeUIExamples = () => {
   useComponent({
     name: "agentProgress",
     description:
-      "Narrate a single step of a longer agent workflow as an animated progress card. Call once per step in sequence. Used by the sprint-planning demo to show 'reading image', 'transcribing', 'planning tickets', 'writing tickets'.",
+      "Narrate a single step of a longer agent workflow as an animated progress card. Call once per step in sequence. Used by the sprint-planning demo to show 'reading_image', 'transcribing', 'planning_tickets', 'writing_tickets'. After the four narration steps, call once more with step='complete' to fold the prior cards into a single 'Analysis and breakdown complete' summary.",
     parameters: AgentProgressProps,
     render: AgentProgress,
   });
 
   // Default Tool Rendering (backend tool UI)
   const ignoredTools = ["render_a2ui", "generate_a2ui", "log_a2ui_event"];
+  // Friendly labels for tool calls that get rendered with the default
+  // ToolReasoning row. Without a mapping, raw identifiers like
+  // `applyPlanningChanges` leak into the user-facing chat. Keep the entries
+  // here aligned with the agent's tool surface in
+  // apps/agent/src + frontend tool registrations below.
+  const toolDisplayNames: Record<string, string> = {
+    applyPlanningChanges: "writing the tickets",
+    enableAppMode: "open sprint board",
+    // Dashboard Designer hardcoded-chip narration tools (emitted by the
+    // Build-the-dashboard / Sarah's-workload chip handlers in App.tsx so
+    // the user sees the agent "do the work" before the pane renders).
+    getData: "Get Data",
+    buildDashboard: "Build Dashboard",
+  };
   useDefaultRenderTool({
     render: ({ name, status, parameters }) => {
       if (ignoredTools.includes(name)) return <></>;
-      return <ToolReasoning name={name} status={status} args={parameters} />;
+      return (
+        <ToolReasoning
+          name={name}
+          status={status}
+          args={parameters}
+          displayName={toolDisplayNames[name]}
+        />
+      );
     },
   });
 

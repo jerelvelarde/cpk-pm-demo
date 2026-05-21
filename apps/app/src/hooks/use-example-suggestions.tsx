@@ -5,12 +5,18 @@ import {
 
 /**
  * Cowork (LangGraph) suggestions — kanban-board workflow.
+ *
+ * Exported (alongside DASHBOARD_SUGGESTIONS) so ChatWired's input intercept
+ * can route a manually-typed chip message through the same
+ * `handleSelectSuggestion` handler that a click would — without that, the
+ * hardcoded ADK chips fall through to aimock's catch-all and the demo
+ * looks broken when the user types instead of clicks.
  */
-const COWORK_SUGGESTIONS = [
+export const COWORK_SUGGESTIONS = [
   {
     title: "Plan next sprint",
     message:
-      "Plan the next sprint backlog using this meeting notes from our sprint planning.",
+      "Plan the next sprint using these meeting notes",
   },
   {
     title: "Analyze backlog",
@@ -49,7 +55,11 @@ const COWORK_SUGGESTIONS = [
 // the suggestion-click interceptor dispatches on title. Messages read like
 // natural user utterances per the suggestion-chip convention (see
 // feedback_suggestion_chips memory note).
-const DASHBOARD_SUGGESTIONS = [
+export const DASHBOARD_SUGGESTIONS = [
+  {
+    title: "Build the dashboard",
+    message: "Build me a dashboard from the current backlog.",
+  },
   {
     title: "Sarah's workload",
     message: "Show me everything Sarah is working on.",
