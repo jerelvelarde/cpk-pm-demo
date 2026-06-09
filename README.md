@@ -1,8 +1,10 @@
 # PM Copilot — CopilotKit demo
 
-A polished, on-brand showcase of CopilotKit running a real workflow app — a mini Linear / Notion that the copilot can drive, observe, and reason about. Built on top of the CopilotKit + LangGraph template, plus a second agent on Google ADK, deterministic demo replay via aimock, and PTT voice via OpenAI Whisper.
+A polished, on-brand showcase of CopilotKit running a real workflow app — a mini Linear / Notion that the copilot can drive, observe, and reason about. Built on top of the CopilotKit + LangGraph template, plus a second agent on Google ADK, deterministic demo via aimock, and PTT voice via OpenAI Whisper.
 
 Branch: `demo/pm-copilot`.
+
+https://github.com/user-attachments/assets/66a86d92-4565-4b9c-96b3-cdda0e780b93
 
 ## What's in it
 
